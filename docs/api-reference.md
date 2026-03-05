@@ -491,3 +491,564 @@ Removes a permission from a role in `users.role_permissions`.
 
 ---
 
+## Inventory
+
+### `GET /inventory/items`
+
+🔒 _Requires authentication._
+
+Returns a paginated list of items from `inventory.items`, optionally filtered.
+
+**Query parameters**
+
+| Param          | Type    | Default | Notes                                       |
+|----------------|---------|---------|---------------------------------------------|
+| `page`         | integer | `1`     |                                             |
+| `per_page`     | integer | `20`    | Max `100`                                   |
+| `category_id`  | UUID    | —       | Filter by category                          |
+| `is_bookable`  | boolean | —       | Filter to bookable items only               |
+| `low_stock`    | boolean | —       | Return items where any location's `quantity` ≤ `reorder_threshold` |
+| `search`       | string  | —       | Partial match on `name` or `sku`            |
+
+**Response `200`**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "sku": "ITEM-001",
+      "name": "Projector",
+      "description": "4K conference room projector",
+      "category_id": "uuid",
+      "unit": "pcs",
+      "reorder_threshold": 2,
+      "is_bookable": true,
+      "image_url": "https://s3.example.com/items/uuid.jpg",
+      "created_by": "uuid",
+      "created_at": "2024-03-06T10:00:00Z",
+      "updated_at": "2024-03-06T10:00:00Z"
+    }
+  ],
+  "meta": { "page": 1, "per_page": 20, "total": 42 }
+}
+```
+
+---
+
+### `POST /inventory/items`
+
+🔒 _Requires `inventory:write` permission._
+
+Creates a new item in `inventory.items`. `created_by` is set to the authenticated account's ID.
+
+**Request body**
+
+| Field               | Type    | Required | Notes                                   |
+|---------------------|---------|----------|-----------------------------------------|
+| `sku`               | string  | Yes      | Must be unique; max 100 chars           |
+| `name`              | string  | Yes      | Max 255 chars                           |
+| `description`       | string  | No       |                                         |
+| `category_id`       | UUID    | No       | Must exist in `inventory.categories`    |
+| `unit`              | string  | Yes      | e.g. `"pcs"`, `"kg"`, `"litres"`       |
+| `reorder_threshold` | integer | No       | Default `0`                             |
+| `is_bookable`       | boolean | No       | Default `false`                         |
+
+**Response `201`** — created item object.
+
+**Errors**
+
+| Status | Reason                       |
+|--------|------------------------------|
+| `409`  | SKU already exists           |
+| `422`  | Validation failure           |
+
+---
+
+### `GET /inventory/items/:id`
+
+🔒 _Requires authentication._
+
+Returns a single item by UUID, including its current stock levels across all locations (joined from `inventory.stock_levels` and `inventory.locations`).
+
+**Response `200`**
+
+```json
+{
+  "id": "uuid",
+  "sku": "ITEM-001",
+  "name": "Projector",
+  "unit": "pcs",
+  "reorder_threshold": 2,
+  "is_bookable": true,
+  "stock_levels": [
+    { "location_id": "uuid", "location_name": "Warehouse A", "quantity": 5 },
+    { "location_id": "uuid", "location_name": "Office Shelf 3", "quantity": 1 }
+  ],
+  "created_at": "2024-03-06T10:00:00Z",
+  "updated_at": "2024-03-06T10:00:00Z"
+}
+```
+
+**Errors**
+
+| Status | Reason         |
+|--------|----------------|
+| `404`  | Item not found |
+
+---
+
+### `PATCH /inventory/items/:id`
+
+🔒 _Requires `inventory:write` permission._
+
+Updates an existing item. Only the fields provided are changed; `sku`, `created_by`, and `created_at` are immutable.
+
+**Request body** (all fields optional)
+
+| Field               | Type    |
+|---------------------|---------|
+| `name`              | string  |
+| `description`       | string  |
+| `category_id`       | UUID    |
+| `unit`              | string  |
+| `reorder_threshold` | integer |
+| `is_bookable`       | boolean |
+
+**Response `200`** — updated item object.
+
+---
+
+### `DELETE /inventory/items/:id`
+
+🔒 _Requires `admin` role._
+
+Soft-deletes an item by setting `is_active = false` (if such a column is added) or performs a hard delete only when no stock transactions reference the item. The preferred approach per schema conventions is soft deletion.
+
+**Response `204`** — no content.
+
+**Errors**
+
+| Status | Reason                                       |
+|--------|----------------------------------------------|
+| `409`  | Item has existing transactions; cannot delete |
+
+---
+
+### `GET /inventory/categories`
+
+🔒 _Requires authentication._
+
+Returns all categories from `inventory.categories` as a flat list. Categories form a hierarchy via `parent_id`; `null` means top-level.
+
+**Response `200`**
+
+```json
+[
+  { "id": "uuid", "name": "Electronics", "parent_id": null, "created_at": "..." },
+  { "id": "uuid", "name": "AV Equipment", "parent_id": "uuid", "created_at": "..." }
+]
+```
+
+---
+
+### `POST /inventory/categories`
+
+🔒 _Requires `inventory:write` permission._
+
+Creates a new category. `parent_id` must reference an existing category if provided.
+
+**Request body**
+
+| Field       | Type   | Required |
+|-------------|--------|----------|
+| `name`      | string | Yes      |
+| `parent_id` | UUID   | No       |
+
+**Response `201`** — created category object.
+
+---
+
+### `GET /inventory/locations`
+
+🔒 _Requires authentication._
+
+Returns all rows from `inventory.locations`. Locations support a hierarchy via `parent_id`.
+
+**Response `200`**
+
+```json
+[
+  { "id": "uuid", "name": "Warehouse A", "description": "Main store", "parent_id": null },
+  { "id": "uuid", "name": "Shelf 3", "description": null, "parent_id": "uuid" }
+]
+```
+
+---
+
+### `POST /inventory/locations`
+
+🔒 _Requires `admin` or `manager` role._
+
+Creates a new location row.
+
+**Request body**
+
+| Field         | Type   | Required |
+|---------------|--------|----------|
+| `name`        | string | Yes      |
+| `description` | string | No       |
+| `parent_id`   | UUID   | No       |
+
+**Response `201`** — created location object.
+
+---
+
+### `GET /inventory/items/:id/stock`
+
+🔒 _Requires authentication._
+
+Returns all `inventory.stock_levels` rows for a given item.
+
+**Response `200`**
+
+```json
+[
+  {
+    "id": "uuid",
+    "item_id": "uuid",
+    "location_id": "uuid",
+    "location_name": "Warehouse A",
+    "quantity": 10,
+    "updated_at": "2024-03-06T10:00:00Z"
+  }
+]
+```
+
+---
+
+### `POST /inventory/transactions`
+
+🔒 _Requires `inventory:write` permission._
+
+Records a stock movement. Inserts an immutable row into `inventory.transactions` and updates the corresponding `inventory.stock_levels` row atomically within a transaction. `performed_by` is set to the authenticated account's ID.
+
+`quantity_delta` must be positive for `in` type and negative for `out` type. The `CHECK (quantity >= 0)` constraint on `inventory.stock_levels` is enforced at the database level.
+
+**Request body**
+
+| Field            | Type    | Required | Notes                                                       |
+|------------------|---------|----------|-------------------------------------------------------------|
+| `item_id`        | UUID    | Yes      |                                                             |
+| `location_id`    | UUID    | Yes      |                                                             |
+| `type`           | string  | Yes      | `"in"`, `"out"`, `"adjustment"`, `"transfer"`               |
+| `quantity_delta` | integer | Yes      | Positive = stock in, negative = stock out                   |
+| `reference_id`   | UUID    | No       | Optional soft reference to a booking or purchase order      |
+| `reference_type` | string  | No       | e.g. `"booking"`, `"purchase_order"`                        |
+| `notes`          | string  | No       |                                                             |
+
+**Response `201`**
+
+```json
+{
+  "id": "uuid",
+  "item_id": "uuid",
+  "location_id": "uuid",
+  "type": "out",
+  "quantity_delta": -3,
+  "reference_id": "uuid",
+  "reference_type": "booking",
+  "notes": "Issued for booking #xyz",
+  "performed_by": "uuid",
+  "performed_at": "2024-03-06T10:00:00Z"
+}
+```
+
+**Errors**
+
+| Status | Reason                                                   |
+|--------|----------------------------------------------------------|
+| `400`  | `quantity_delta` would result in negative stock          |
+| `404`  | Item or location not found                               |
+| `422`  | `type` and sign of `quantity_delta` are inconsistent     |
+
+---
+
+### `GET /inventory/transactions`
+
+🔒 _Requires authentication._
+
+Returns a paginated, filtered list of transaction records from `inventory.transactions`. Transactions are immutable — no update or delete is permitted.
+
+**Query parameters**
+
+| Param          | Type    | Default | Notes                                  |
+|----------------|---------|---------|----------------------------------------|
+| `item_id`      | UUID    | —       |                                        |
+| `location_id`  | UUID    | —       |                                        |
+| `type`         | string  | —       | `"in"`, `"out"`, `"adjustment"`, `"transfer"` |
+| `performed_by` | UUID    | —       |                                        |
+| `from`         | ISO8601 | —       | Filter by `performed_at >=`            |
+| `to`           | ISO8601 | —       | Filter by `performed_at <=`            |
+| `page`         | integer | `1`     |                                        |
+| `per_page`     | integer | `20`    | Max `100`                              |
+
+**Response `200`**
+
+```json
+{
+  "data": [ /* array of transaction objects */ ],
+  "meta": { "page": 1, "per_page": 20, "total": 310 }
+}
+```
+
+---
+
+## Bookings
+
+### `GET /bookings/resources`
+
+🔒 _Requires authentication._
+
+Returns all active bookable resources from `bookings.resources`, joined with the backing `inventory.items` row. Only resources where `is_active = true` are returned by default.
+
+**Query parameters**
+
+| Param       | Type    | Default | Notes                       |
+|-------------|---------|---------|-----------------------------|
+| `is_active` | boolean | `true`  |                             |
+| `page`      | integer | `1`     |                             |
+| `per_page`  | integer | `20`    | Max `100`                   |
+
+**Response `200`**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "item_id": "uuid",
+      "name": "Conference Projector A",
+      "quantity": 2,
+      "is_active": true
+    }
+  ],
+  "meta": { "page": 1, "per_page": 20, "total": 8 }
+}
+```
+
+---
+
+### `POST /bookings/resources`
+
+🔒 _Requires `admin` or `manager` role._
+
+Creates a bookable resource backed by an inventory item. The referenced `inventory.items` row must have `is_bookable = true`.
+
+**Request body**
+
+| Field      | Type    | Required | Notes                                          |
+|------------|---------|----------|------------------------------------------------|
+| `item_id`  | UUID    | Yes      | Must reference an item with `is_bookable = true` |
+| `name`     | string  | Yes      | Display name shown in booking UI               |
+| `quantity` | integer | Yes      | Total bookable units; must be > 0              |
+
+**Response `201`** — created resource object.
+
+**Errors**
+
+| Status | Reason                                        |
+|--------|-----------------------------------------------|
+| `400`  | Referenced item does not have `is_bookable = true` |
+| `404`  | Item not found                                |
+
+---
+
+### `PATCH /bookings/resources/:id`
+
+🔒 _Requires `admin` or `manager` role._
+
+Updates a resource's display name, quantity, or active state.
+
+**Request body** (all fields optional)
+
+| Field       | Type    |
+|-------------|---------|
+| `name`      | string  |
+| `quantity`  | integer |
+| `is_active` | boolean |
+
+**Response `200`** — updated resource object.
+
+---
+
+### `GET /bookings/resources/:id/availability`
+
+🔒 _Requires authentication._
+
+Returns the available quantity for a resource over a requested time window. Considers all overlapping reservations with `status IN ('pending', 'approved')`.
+
+**Query parameters**
+
+| Param        | Type    | Required | Notes              |
+|--------------|---------|----------|--------------------|
+| `start_time` | ISO8601 | Yes      |                    |
+| `end_time`   | ISO8601 | Yes      | Must be > `start_time` |
+
+**Response `200`**
+
+```json
+{
+  "resource_id": "uuid",
+  "total_quantity": 2,
+  "reserved_quantity": 1,
+  "available_quantity": 1,
+  "start_time": "2024-03-07T09:00:00Z",
+  "end_time": "2024-03-07T11:00:00Z"
+}
+```
+
+---
+
+### `GET /bookings/reservations`
+
+🔒 _Requires authentication._
+
+Returns reservations from `bookings.reservations`. Non-admin/manager accounts receive only their own reservations (`requested_by = current user`). Admins and managers see all.
+
+**Query parameters**
+
+| Param         | Type    | Default | Notes                                                         |
+|---------------|---------|---------|---------------------------------------------------------------|
+| `resource_id` | UUID    | —       |                                                               |
+| `status`      | string  | —       | `"pending"`, `"approved"`, `"rejected"`, `"cancelled"`        |
+| `requested_by`| UUID    | —       | Admin/manager only                                            |
+| `from`        | ISO8601 | —       | Filter by `start_time >=`                                     |
+| `to`          | ISO8601 | —       | Filter by `end_time <=`                                       |
+| `page`        | integer | `1`     |                                                               |
+| `per_page`    | integer | `20`    | Max `100`                                                     |
+
+**Response `200`**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "resource_id": "uuid",
+      "requested_by": "uuid",
+      "quantity": 1,
+      "start_time": "2024-03-07T09:00:00Z",
+      "end_time": "2024-03-07T11:00:00Z",
+      "status": "pending",
+      "priority": 50,
+      "notes": "Needed for client demo",
+      "reviewed_by": null,
+      "reviewed_at": null,
+      "created_at": "2024-03-06T10:00:00Z",
+      "updated_at": "2024-03-06T10:00:00Z"
+    }
+  ],
+  "meta": { "page": 1, "per_page": 20, "total": 3 }
+}
+```
+
+---
+
+### `POST /bookings/reservations`
+
+🔒 _Requires authentication._
+
+Creates a new reservation in `bookings.reservations`. `requested_by` is set to the authenticated account. `priority` is copied from the user's highest-priority role at the time of booking (sourced from `users.roles.priority` via `users.account_roles`). Initial `status` is `"pending"`.
+
+Overlap prevention is enforced via application-level advisory locks (Redis). The partial index on `(resource_id, start_time, end_time)` assists conflict detection for `status IN ('pending', 'approved')`.
+
+**Request body**
+
+| Field         | Type    | Required | Notes                              |
+|---------------|---------|----------|------------------------------------|
+| `resource_id` | UUID    | Yes      |                                    |
+| `quantity`    | integer | Yes      | Must be > 0                        |
+| `start_time`  | ISO8601 | Yes      |                                    |
+| `end_time`    | ISO8601 | Yes      | Must be > `start_time`             |
+| `notes`       | string  | No       |                                    |
+
+**Response `201`** — created reservation object.
+
+**Errors**
+
+| Status | Reason                                                |
+|--------|-------------------------------------------------------|
+| `400`  | `end_time` ≤ `start_time`                             |
+| `409`  | Requested quantity unavailable in the given time window |
+| `404`  | Resource not found or inactive                        |
+
+---
+
+### `GET /bookings/reservations/:id`
+
+🔒 _Requires authentication._
+
+Returns a single reservation. Non-admin/manager accounts may only retrieve their own.
+
+**Response `200`** — reservation object (same shape as list item above).
+
+**Errors**
+
+| Status | Reason          |
+|--------|-----------------|
+| `403`  | Not your reservation |
+| `404`  | Not found       |
+
+---
+
+### `PATCH /bookings/reservations/:id`
+
+🔒 _Requires authentication._
+
+Allows the requesting user to update `notes` or cancel (`status = "cancelled"`) their own pending reservation. Admins and managers may additionally update `quantity`, `start_time`, and `end_time` on pending reservations.
+
+**Request body** (all fields optional)
+
+| Field        | Type    | Notes                                      |
+|--------------|---------|--------------------------------------------|
+| `notes`      | string  |                                            |
+| `status`     | string  | User: `"cancelled"` only; Admin/manager: any |
+| `quantity`   | integer | Admin/manager only                         |
+| `start_time` | ISO8601 | Admin/manager only                         |
+| `end_time`   | ISO8601 | Admin/manager only                         |
+
+**Response `200`** — updated reservation object.
+
+**Errors**
+
+| Status | Reason                                    |
+|--------|-------------------------------------------|
+| `403`  | Insufficient permissions for the update   |
+| `409`  | Status transition is not allowed          |
+
+---
+
+### `POST /bookings/reservations/:id/review`
+
+🔒 _Requires `bookings:approve` permission._
+
+Approves or rejects a reservation. Sets `status`, `reviewed_by` (authenticated account), and `reviewed_at` on the `bookings.reservations` row.
+
+**Request body**
+
+| Field    | Type   | Required | Notes                         |
+|----------|--------|----------|-------------------------------|
+| `action` | string | Yes      | `"approve"` or `"reject"`     |
+| `notes`  | string | No       | Optional reviewer comment     |
+
+**Response `200`** — updated reservation object.
+
+**Errors**
+
+| Status | Reason                                           |
+|--------|--------------------------------------------------|
+| `409`  | Reservation is not in `"pending"` status         |
+| `409`  | Approving but quantity no longer available (re-checked at review time) |
+
+---
