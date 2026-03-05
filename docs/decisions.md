@@ -123,3 +123,274 @@ Booking overlap detection and conflict resolution will use **Redis distributed l
 ### Trade-offs accepted
 - The distributed lock adds a Redis dependency to the critical path of booking creation. If Redis is unavailable, booking creation is unavailable. This is acceptable — Redis is an infrastructure dependency already, not an optional one.
 - Lock-based prevention is "optimistic enough" for this use case. Fully serializable PostgreSQL transactions (`SERIALIZABLE` isolation) would be the pure-SQL alternative but are heavier and trickier to implement correctly.
+
+
+## ADR-007 — API Routes Mirror Database Module Boundaries
+
+| Field  | Value          |
+|--------|----------------|
+| Date   | 2026-03-06     |
+| Status | Decided     |
+
+### Decision
+
+The API route structure mirrors the six module namespaces defined in the PostgreSQL schema:
+
+| Route          | Owns                        |
+|----------------|-----------------------------|
+| `/auth`        | Authentication & OAuth      |
+| `/users`       | User accounts & roles       |
+| `/inventory`   | Items & transactions        |
+| `/bookings`    | Reservations                |
+| `/audit`       | Event log                   |
+| `/analytics`   | Pre-aggregated metrics      |
+
+Each route namespace corresponds directly to the schema that owns the underlying tables.
+
+### Rationale
+
+- The database schema was intentionally designed as a modular monolith with clear ownership boundaries between modules.
+- Aligning API routes with schema namespaces makes it immediately obvious which tables back each endpoint.
+- This structure simplifies access control policies, service ownership, and developer navigation of the codebase.
+- It also ensures API documentation remains tightly coupled to the canonical schema definition.
+
+### Trade-offs Accepted
+
+Some operations involve multiple modules (e.g. booking creation reads role priority from the `users` module). In these cases, the endpoint is documented under the module that owns the primary record, while cross-module interactions are described inline.
+
+---
+
+## ADR-008 — Actor Fields Are Derived from the Authenticated Session
+
+| Field  | Value          |
+|--------|----------------|
+| Date   | 2026-03-06     |
+| Status | Decided     |
+
+### Decision
+
+Fields representing the actor responsible for an action (e.g. `created_by`, `performed_by`, `requested_by`) will **never** be accepted in API request bodies. These values are always inferred from the authenticated session and set server-side.
+
+### Rationale
+
+Several tables include foreign keys referencing `auth.accounts(id)` to track who performed an action. Allowing the client to supply these values would permit impersonation or falsification of records. By deriving the value from the authenticated session, the system guarantees:
+
+- The actor identity is trustworthy
+- Audit trails remain reliable
+- Permission enforcement remains consistent
+
+### Trade-offs Accepted
+
+Clients cannot simulate actions performed by other users via the API. Administrative tooling that needs this capability must operate through privileged internal services rather than the public API.
+
+---
+
+## ADR-009 — Reservation Priority Is Snapshotted at Booking Time
+
+| Field  | Value          |
+|--------|----------------|
+| Date   | 2026-03-06     |
+| Status | Decided     |
+
+### Decision
+
+Reservation priority is determined when the booking is created and stored directly on the reservation record. The priority is copied from the user's highest-priority role at booking time rather than dynamically looked up.
+
+### Rationale
+
+The schema explicitly specifies that `bookings.reservations.priority` is a snapshot value. If role priority were evaluated dynamically, changing a role's priority could retroactively reorder existing reservations. Storing the snapshot ensures:
+
+- Deterministic booking order
+- Predictable fairness
+- Simpler queries when sorting reservations by priority
+
+### Trade-offs Accepted
+
+If a user's role priority changes later, existing reservations will not update automatically. Historical reservations may reflect outdated priorities relative to current role configuration.
+
+---
+
+## ADR-010 — Inventory Transactions Are Immutable
+
+| Field  | Value          |
+|--------|----------------|
+| Date   | 2026-03-06     |
+| Status | Decided     |
+
+### Decision
+
+Inventory transactions are treated as an immutable ledger.
+
+| Exposed | Not Exposed |
+|---------|-------------|
+| `POST /inventory/transactions` | `PATCH /inventory/transactions/:id` |
+| | `DELETE /inventory/transactions/:id` |
+
+Corrections must be performed using **compensating transactions**.
+
+### Rationale
+
+The schema defines `inventory.transactions` as a permanent record of all stock movements. Mutating historical transactions would break the integrity of the inventory ledger. Immutable logs are a well-established accounting pattern and provide:
+
+- Auditability
+- Easier debugging
+- Accurate historical reconstruction of stock levels
+
+### Trade-offs Accepted
+
+Mistakes cannot be edited directly. Fixing an incorrect transaction requires adding a new adjustment transaction with the opposite `quantity_delta`.
+
+---
+
+## ADR-011 — Audit Events Are Write-Only Internally and Read-Only via API
+
+| Field  | Value          |
+|--------|----------------|
+| Date   | 2026-03-06     |
+| Status | Decided     |
+
+### Decision
+
+The audit event API exposes only read operations:
+
+```
+GET  /audit/events
+GET  /audit/events/:id
+```
+
+There is no public API endpoint for creating audit events.
+
+### Rationale
+
+Audit events are generated internally as side effects of application operations. Allowing clients to create audit events directly would permit fabrication or manipulation of the audit log. The audit system is designed as an append-only record of system activity. The schema also stores a denormalized `actor_email` snapshot, ensuring records remain meaningful even if accounts are later deleted.
+
+### Trade-offs Accepted
+
+Developers cannot manually insert audit events via the public API. Internal services must explicitly write audit records when relevant actions occur.
+
+---
+
+## ADR-012 — Analytics API Serves Pre-Aggregated Data Only
+
+| Field  | Value          |
+|--------|----------------|
+| Date   | 2026-03-06     |
+| Status | Decided     |
+
+### Decision
+
+Analytics endpoints return pre-aggregated data stored in the `analytics` schema rather than performing live aggregation queries. Example endpoints:
+
+```
+GET /analytics/inventory/snapshots
+GET /analytics/bookings/metrics
+```
+
+### Rationale
+
+The analytics module is explicitly designed to store pre-computed aggregates derived from operational tables. Running heavy aggregation queries directly on transactional tables (e.g. `inventory.transactions`) would introduce performance risks. Pre-aggregation ensures:
+
+- Fast API responses
+- Predictable load on the database
+- Isolation between operational workloads and reporting workloads
+
+### Trade-offs Accepted
+
+Analytics data may be slightly delayed depending on the snapshot refresh schedule. Ad-hoc analytical queries are not supported through the production API and should be performed through a separate reporting or data warehouse system.
+
+---
+
+## ADR-013 — Booking Overlap Prevention Implemented at Application Layer
+
+| Field  | Value          |
+|--------|----------------|
+| Date   | 2026-03-06     |
+| Status | Decided     |
+
+### Decision
+
+Booking conflict prevention is implemented using application-level logic with **Redis advisory locks**, supported by a PostgreSQL index used for conflict detection queries.
+
+### Rationale
+
+PostgreSQL cannot express time-range overlap prevention on `TIMESTAMPTZ` columns without an exclusion constraint and the `btree_gist` extension. The system architecture already includes Redis for caching, making it suitable for distributed locking. Redis locks ensure that only one booking operation for a given resource runs the conflict check and insert transaction at a time.
+
+### Trade-offs Accepted
+
+- Booking creation becomes dependent on Redis availability.
+- The solution is not purely database-enforced, requiring correct implementation of the locking logic in the application layer.
+
+---
+
+## ADR-014 — Reservation List Endpoint Is Scoped by User Role
+
+| Field  | Value          |
+|--------|----------------|
+| Date   | 2026-03-06     |
+| Status | Decided     |
+
+### Decision
+
+The `GET /bookings/reservations` endpoint returns results based on the role of the authenticated user:
+
+| Role | Visible Reservations |
+|------|----------------------|
+| Employee | Only reservations where `requested_by` = their account |
+| Manager / Administrator | All reservations; may filter by `requested_by` |
+
+### Rationale
+
+Reservations reference the requesting account through `bookings.reservations.requested_by`. Allowing unrestricted access would allow users to enumerate other users' bookings. Role-based scoping ensures that sensitive scheduling data is only visible to authorised roles.
+
+### Trade-offs Accepted
+
+The endpoint requires additional role-checking logic at the application layer. Queries must dynamically adjust their filters based on user permissions.
+
+---
+
+## ADR-015 — Inventory Items Use Soft Deletion
+
+| Field  | Value          |
+|--------|----------------|
+| Date   | 2026-03-06     |
+| Status | Decided     |
+
+### Decision
+
+Deleting an inventory item via the API performs a **soft delete** by setting `is_active = false`. A hard delete is only permitted if no inventory transactions reference the item.
+
+### Rationale
+
+The inventory transaction ledger stores historical references to item IDs. Hard deleting an item would break the integrity of historical records. Soft deletion preserves:
+
+- Auditability
+- Referential coherence
+- Historical transaction visibility
+
+### Trade-offs Accepted
+
+Soft-deleted items remain in the database and must be filtered out in queries where inactive items should not appear. Over time, the items table may accumulate inactive records.
+
+---
+
+## ADR-016 — OAuth Email Conflict Handling Returns 409
+
+| Field  | Value          |
+|--------|----------------|
+| Date   | 2026-03-06     |
+| Status | Decided     |
+
+### Decision
+
+If an OAuth authentication callback returns an email that already exists for a password-based account, the server returns **HTTP `409 Conflict`** rather than automatically linking the OAuth provider.
+
+### Rationale
+
+- `auth.accounts` enforces a unique constraint on `email`.
+- `auth.oauth_providers` enforces a unique constraint on `(provider, provider_uid)`.
+- Automatically linking accounts based solely on a matching email would introduce identity verification risks.
+- Requiring the user to log in first and explicitly link the OAuth provider ensures the action is intentional and authenticated.
+
+### Trade-offs Accepted
+
+The user experience during OAuth login may involve an additional step when an email conflict occurs. Account linking requires an explicit workflow after the user authenticates using their existing credentials.
