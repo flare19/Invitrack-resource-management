@@ -1052,3 +1052,214 @@ Approves or rejects a reservation. Sets `status`, `reviewed_by` (authenticated a
 | `409`  | Approving but quantity no longer available (re-checked at review time) |
 
 ---
+
+## Audit
+
+The `audit.events` table is append-only. No endpoint ever mutates or deletes audit records. `actor_email` is denormalized so that the audit trail survives account deletion. `actor_id` may be `null` for system-generated events.
+
+### `GET /audit/events`
+
+🔒 _Requires `admin` role._
+
+Returns a paginated list of audit events from `audit.events`.
+
+**Query parameters**
+
+| Param         | Type    | Default | Notes                                                    |
+|---------------|---------|---------|----------------------------------------------------------|
+| `actor_id`    | UUID    | —       | Filter by the account that performed the action          |
+| `module`      | string  | —       | e.g. `"inventory"`, `"bookings"`, `"auth"`               |
+| `action`      | string  | —       | Exact match, e.g. `"inventory.item.created"`             |
+| `target_type` | string  | —       | e.g. `"item"`, `"reservation"`                           |
+| `target_id`   | UUID    | —       | Filter by the ID of the affected record                  |
+| `from`        | ISO8601 | —       | Filter by `created_at >=`                                |
+| `to`          | ISO8601 | —       | Filter by `created_at <=`                                |
+| `page`        | integer | `1`     |                                                          |
+| `per_page`    | integer | `20`    | Max `100`                                                |
+
+**Response `200`**
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "actor_id": "uuid",
+      "actor_email": "user@example.com",
+      "action": "inventory.item.created",
+      "module": "inventory",
+      "target_type": "item",
+      "target_id": "uuid",
+      "payload": {
+        "before": null,
+        "after": { "sku": "ITEM-001", "name": "Projector" }
+      },
+      "ip_address": "192.168.1.1",
+      "user_agent": "Mozilla/5.0 ...",
+      "created_at": "2024-03-06T10:00:00Z"
+    }
+  ],
+  "meta": { "page": 1, "per_page": 20, "total": 1042 }
+}
+```
+
+---
+
+### `GET /audit/events/:id`
+
+🔒 _Requires `admin` role._
+
+Returns a single audit event by UUID.
+
+**Response `200`** — single audit event object (same shape as list item above).
+
+**Errors**
+
+| Status | Reason           |
+|--------|------------------|
+| `404`  | Event not found  |
+
+---
+
+### Action Catalogue
+
+The `action` field follows the pattern `<module>.<target_type>.<verb>`. Known values:
+
+| Action                          | Module      | Target type    |
+|---------------------------------|-------------|----------------|
+| `auth.account.registered`       | `auth`      | `account`      |
+| `auth.account.login`            | `auth`      | `account`      |
+| `auth.account.logout`           | `auth`      | `account`      |
+| `auth.account.password_reset`   | `auth`      | `account`      |
+| `auth.session.revoked`          | `auth`      | `session`      |
+| `users.role.assigned`           | `users`     | `account_role` |
+| `users.role.removed`            | `users`     | `account_role` |
+| `users.account.deactivated`     | `users`     | `account`      |
+| `inventory.item.created`        | `inventory` | `item`         |
+| `inventory.item.updated`        | `inventory` | `item`         |
+| `inventory.transaction.created` | `inventory` | `transaction`  |
+| `bookings.reservation.created`  | `bookings`  | `reservation`  |
+| `bookings.reservation.approved` | `bookings`  | `reservation`  |
+| `bookings.reservation.rejected` | `bookings`  | `reservation`  |
+| `bookings.reservation.cancelled`| `bookings`  | `reservation`  |
+
+---
+
+## Analytics
+
+Analytics endpoints serve pre-aggregated data from the `analytics` schema. Raw source data lives in `inventory.transactions` and `bookings.reservations`. Snapshots are populated by background jobs (typically at end-of-day).
+
+### `GET /analytics/inventory/snapshots`
+
+🔒 _Requires `admin` or `manager` role._
+
+Returns daily end-of-day stock level snapshots from `analytics.daily_inventory_snapshots`. Useful for plotting stock trends over time without scanning the full transactions ledger.
+
+**Query parameters**
+
+| Param         | Type | Required | Notes                                     |
+|---------------|------|----------|-------------------------------------------|
+| `item_id`     | UUID | Yes      | Must be provided                          |
+| `location_id` | UUID | No       | Optionally scope to a single location     |
+| `from`        | DATE | No       | Filter by `snapshot_date >=`; format `YYYY-MM-DD` |
+| `to`          | DATE | No       | Filter by `snapshot_date <=`; format `YYYY-MM-DD` |
+
+**Response `200`**
+
+```json
+[
+  {
+    "snapshot_date": "2024-03-05",
+    "item_id": "uuid",
+    "location_id": "uuid",
+    "quantity": 8,
+    "created_at": "2024-03-05T23:59:59Z"
+  },
+  {
+    "snapshot_date": "2024-03-06",
+    "item_id": "uuid",
+    "location_id": "uuid",
+    "quantity": 5,
+    "created_at": "2024-03-06T23:59:59Z"
+  }
+]
+```
+
+---
+
+### `GET /analytics/bookings/metrics`
+
+🔒 _Requires `admin` or `manager` role._
+
+Returns aggregated daily booking metrics from `analytics.booking_metrics`. One row per `(metric_date, resource_id)`.
+
+**Query parameters**
+
+| Param         | Type | Required | Notes                                     |
+|---------------|------|----------|-------------------------------------------|
+| `resource_id` | UUID | No       | Scope to a single resource                |
+| `from`        | DATE | No       | Filter by `metric_date >=`; format `YYYY-MM-DD` |
+| `to`          | DATE | No       | Filter by `metric_date <=`; format `YYYY-MM-DD` |
+
+**Response `200`**
+
+```json
+[
+  {
+    "metric_date": "2024-03-06",
+    "resource_id": "uuid",
+    "total_requests": 12,
+    "approved_count": 9,
+    "rejected_count": 2,
+    "utilization_minutes": 480,
+    "created_at": "2024-03-06T23:59:59Z"
+  }
+]
+```
+
+`utilization_minutes` is the sum of `(end_time - start_time)` in minutes across all approved reservations for that resource on that date.
+
+---
+
+## Common Patterns
+
+### Error response shape
+
+All error responses follow a consistent envelope:
+
+```json
+{
+  "error": {
+    "code": "RESOURCE_NOT_FOUND",
+    "message": "Item with id '...' does not exist.",
+    "details": {}
+  }
+}
+```
+
+### Pagination
+
+Paginated endpoints accept `page` (1-indexed) and `per_page` query parameters and return a `meta` object:
+
+```json
+{
+  "data": [],
+  "meta": {
+    "page": 1,
+    "per_page": 20,
+    "total": 150
+  }
+}
+```
+
+### Authentication header
+
+```
+Authorization: Bearer <access_token>
+```
+
+Access tokens expire in 15 minutes. Use `POST /auth/refresh` to obtain a new one using the `HttpOnly` refresh token cookie.
+
+### Timestamps
+
+All timestamp fields are ISO 8601 strings in UTC. Date-only fields (snapshot dates, metric dates) use `YYYY-MM-DD` format.
