@@ -394,3 +394,105 @@ If an OAuth authentication callback returns an email that already exists for a p
 ### Trade-offs Accepted
 
 The user experience during OAuth login may involve an additional step when an email conflict occurs. Account linking requires an explicit workflow after the user authenticates using their existing credentials.
+
+ADR-016: Use JWT Access Tokens with Refresh Token Rotation over Server-Side Sessions
+Date: 2026-03-07
+Decision:
+Authentication will be implemented using short-lived JWT access tokens (15-minute
+expiry) paired with long-lived refresh tokens stored in an HttpOnly cookie.
+Refresh token rotation will be enforced: each use of a refresh token issues a
+new one and invalidates the previous, with refresh token families tracked in
+the database to detect reuse attacks.
+Reasoning:
+
+JWTs are stateless by default, removing the need for a shared session store
+in the initial phase of the project.
+Short access token expiry limits the blast radius of a leaked token without
+requiring server-side validation on every request.
+Refresh token rotation provides a security guarantee comparable to session
+invalidation: reuse of a rotated token triggers family-wide revocation.
+Server-side sessions would require a shared, persistent session store (Redis
+or a DB table) from day one, adding infrastructure complexity before the core
+system is stable.
+The stateless access token model aligns with the planned AWS deployment, where
+the API server may eventually run as more than one instance.
+
+Tradeoffs:
+
+Access tokens cannot be individually revoked before expiry; a 15-minute window
+is the accepted risk.
+Refresh token state must be persisted (a refresh_tokens table), so the
+approach is not fully stateless end-to-end.
+Rotation logic introduces implementation complexity that raw sessions do not.
+Care is required to prevent token leakage via insecure storage on the client.
+
+
+ADR-017: Use Prisma ORM over Raw SQL
+Date: 2026-03-07
+Decision:
+All database interactions will be written using Prisma as the ORM layer.
+The Prisma schema will serve as the authoritative source of truth for the
+data model, and Prisma Migrate will manage schema evolution.
+Reasoning:
+
+Prisma provides a typed query API that surfaces schema mismatches at
+development time rather than at runtime, reducing a common class of bugs
+for a solo developer without a dedicated QA phase.
+Auto-generated types from the Prisma schema eliminate the need to maintain
+a parallel set of TypeScript interfaces for database entities.
+Prisma Migrate produces versioned, reviewable SQL migration files, satisfying
+the project's requirement for an auditable schema history.
+The query API is expressive enough to cover all anticipated access patterns
+(filtering, pagination, relation loading) without requiring raw SQL for
+the common case.
+Raw SQL would be faster to write for trivial queries but would require
+manual type mapping, increasing the surface area for runtime errors in a
+codebase maintained by a single engineer.
+
+Tradeoffs:
+
+Prisma adds a build-time code generation step (prisma generate) that must
+be included in the CI pipeline.
+Complex analytical queries (aggregations, window functions) may require
+falling back to prisma.$queryRaw, partially bypassing type safety.
+The abstraction layer makes query execution plans less transparent; slow
+queries will require explicit EXPLAIN analysis rather than obvious SQL review.
+Vendor coupling: migrating away from Prisma later would require rewriting
+the data access layer.
+
+
+ADR-018: Defer Redis Integration to a Later Phase
+Date: 2026-03-07
+Decision:
+Redis will not be included in the initial build. Features that could use Redis
+(distributed locking for booking conflicts, caching, rate limiting) will be
+implemented using PostgreSQL-native primitives in Phase 1, with Redis introduced
+as a targeted upgrade once the core system is stable and deployed.
+Reasoning:
+
+The project is deployed on a single AWS free-tier EC2 instance. Running a
+Redis process alongside Node.js and PostgreSQL on the same instance increases
+memory pressure without a clear throughput justification at the current scale.
+PostgreSQL advisory locks are sufficient to prevent double-booking under the
+expected concurrent load of a portfolio-scale system; Redis-based locks solve
+a problem that does not yet exist.
+Introducing Redis before the core domain logic is stable adds an operational
+dependency to debug during the most error-prone phase of development.
+Deferral keeps the local development environment simple: one database
+connection string, no additional Docker service required for contributors
+running the project.
+The architecture is designed so Redis can be added non-disruptively: the
+locking interface and cache call sites will be written behind thin
+abstractions that can swap implementations.
+
+Tradeoffs:
+
+PostgreSQL advisory locks are connection-scoped; under high concurrency or
+connection pool exhaustion they are less reliable than Redis-based locks.
+Without a caching layer, repeated reads for analytics snapshots and inventory
+state hit the database on every request during Phase 1.
+Adding Redis later requires updating the deployment configuration, the CI
+pipeline, and any environment variable management — work that could have been
+done once upfront.
+The deferred approach requires disciplined abstraction now to avoid a painful
+refactor when Redis is eventually introduced.
