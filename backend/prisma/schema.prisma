@@ -1,0 +1,353 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["auth", "users", "inventory", "bookings", "audit", "analytics"]
+}
+
+// ============================================================
+// AUTH MODULE
+// ============================================================
+
+model Account {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique @db.VarChar(255)
+  passwordHash String?  @map("password_hash") @db.Text
+  isVerified   Boolean  @default(false) @map("is_verified")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // relations
+  sessions            Session[]
+  oauthProviders      OAuthProvider[]
+  passwordResetTokens PasswordResetToken[]
+
+  // users relations
+  profile      Profile?
+  accountRoles AccountRole[]
+
+  // inventory relations
+  itemsCreated   Item[]        @relation("ItemCreatedBy")
+  transactions   Transaction[] @relation("TransactionPerformedBy")
+
+  // bookings relations
+  reservationsRequested Reservation[] @relation("ReservationRequestedBy")
+  reservationsReviewed  Reservation[] @relation("ReservationReviewedBy")
+
+  @@map("accounts")
+  @@schema("auth")
+}
+
+model OAuthProvider {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId   String   @map("account_id") @db.Uuid
+  provider    String   @db.VarChar(50)
+  providerUid String   @map("provider_uid") @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUid])
+  @@map("oauth_providers")
+  @@schema("auth")
+}
+
+model Session {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId    String   @map("account_id") @db.Uuid
+  refreshToken String   @unique @map("refresh_token") @db.Text
+  userAgent    String?  @map("user_agent") @db.Text
+  ipAddress    String?  @map("ip_address")
+  expiresAt    DateTime @map("expires_at") @db.Timestamptz()
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+  @@schema("auth")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId String    @map("account_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.Text
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz()
+  usedAt    DateTime? @map("used_at") @db.Timestamptz()
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+  @@schema("auth")
+}
+
+// ============================================================
+// USERS MODULE
+// ============================================================
+
+model Profile {
+  id          String   @id @db.Uuid
+  fullName    String   @map("full_name") @db.VarChar(255)
+  displayName String?  @map("display_name") @db.VarChar(100)
+  avatarUrl   String?  @map("avatar_url") @db.Text
+  department  String?  @db.VarChar(100)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  account Account @relation(fields: [id], references: [id])
+
+  @@map("profiles")
+  @@schema("users")
+}
+
+model Role {
+  id          Int     @id @default(autoincrement()) @db.SmallInt
+  name        String  @unique @db.VarChar(50)
+  description String? @db.Text
+  priority    Int     @default(0) @db.SmallInt
+
+  accountRoles    AccountRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+  @@schema("users")
+}
+
+model AccountRole {
+  accountId String   @map("account_id") @db.Uuid
+  roleId    Int      @map("role_id") @db.SmallInt
+  grantedBy String?  @map("granted_by") @db.Uuid
+  grantedAt DateTime @default(now()) @map("granted_at") @db.Timestamptz()
+
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  role      Role    @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@id([accountId, roleId])
+  @@map("account_roles")
+  @@schema("users")
+}
+
+model Permission {
+  id          Int     @id @default(autoincrement()) @db.SmallInt
+  code        String  @unique @db.VarChar(100)
+  description String? @db.Text
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+  @@schema("users")
+}
+
+model RolePermission {
+  roleId       Int @map("role_id") @db.SmallInt
+  permissionId Int @map("permission_id") @db.SmallInt
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+  @@schema("users")
+}
+
+// ============================================================
+// INVENTORY MODULE
+// ============================================================
+
+model Category {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String    @db.VarChar(100)
+  parentId  String?   @map("parent_id") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  items    Item[]
+
+  @@index([parentId])
+  @@map("categories")
+  @@schema("inventory")
+}
+
+model Item {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sku              String    @unique @db.VarChar(100)
+  name             String    @db.VarChar(255)
+  description      String?   @db.Text
+  categoryId       String?   @map("category_id") @db.Uuid
+  unit             String    @db.VarChar(50)
+  reorderThreshold Int       @default(0) @map("reorder_threshold")
+  isBookable       Boolean   @default(false) @map("is_bookable")
+  imageUrl         String?   @map("image_url") @db.Text
+  createdBy        String    @map("created_by") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  category     Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdByAcc Account       @relation("ItemCreatedBy", fields: [createdBy], references: [id])
+  stockLevels  StockLevel[]
+  transactions Transaction[]
+  resources    Resource[]
+
+  @@map("items")
+  @@schema("inventory")
+}
+
+model Location {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String    @db.VarChar(100)
+  description String?   @db.Text
+  parentId    String?   @map("parent_id") @db.Uuid
+
+  parent      Location?  @relation("LocationHierarchy", fields: [parentId], references: [id])
+  children    Location[] @relation("LocationHierarchy")
+  stockLevels StockLevel[]
+  transactions Transaction[]
+
+  @@index([parentId])
+  @@map("locations")
+  @@schema("inventory")
+}
+
+model StockLevel {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  itemId     String   @map("item_id") @db.Uuid
+  locationId String   @map("location_id") @db.Uuid
+  quantity   Int      @default(0)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  item     Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  @@unique([itemId, locationId])
+  @@map("stock_levels")
+  @@schema("inventory")
+}
+
+model Transaction {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  itemId        String   @map("item_id") @db.Uuid
+  locationId    String   @map("location_id") @db.Uuid
+  type          String   @db.VarChar(50)
+  quantityDelta Int      @map("quantity_delta")
+  referenceId   String?  @map("reference_id") @db.Uuid
+  referenceType String?  @map("reference_type") @db.VarChar(50)
+  notes         String?  @db.Text
+  performedBy   String   @map("performed_by") @db.Uuid
+  performedAt   DateTime @default(now()) @map("performed_at") @db.Timestamptz()
+
+  item            Item     @relation(fields: [itemId], references: [id])
+  location        Location @relation(fields: [locationId], references: [id])
+  performedByAcc  Account  @relation("TransactionPerformedBy", fields: [performedBy], references: [id])
+
+  @@map("transactions")
+  @@schema("inventory")
+}
+
+// ============================================================
+// BOOKINGS MODULE
+// ============================================================
+
+model Resource {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  itemId   String  @map("item_id") @db.Uuid
+  name     String  @db.VarChar(255)
+  quantity Int     @default(1)
+  isActive Boolean @default(true) @map("is_active")
+
+  item         Item          @relation(fields: [itemId], references: [id])
+  reservations Reservation[]
+
+  @@map("resources")
+  @@schema("bookings")
+}
+
+model Reservation {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  resourceId String   @map("resource_id") @db.Uuid
+  requestedBy String  @map("requested_by") @db.Uuid
+  quantity   Int      @default(1)
+  startTime  DateTime @map("start_time") @db.Timestamptz()
+  endTime    DateTime @map("end_time") @db.Timestamptz()
+  status     String   @default("pending") @db.VarChar(50)
+  priority   Int      @default(0) @db.SmallInt
+  notes      String?  @db.Text
+  reviewedBy String?  @map("reviewed_by") @db.Uuid
+  reviewedAt DateTime? @map("reviewed_at") @db.Timestamptz()
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  resource       Resource @relation(fields: [resourceId], references: [id])
+  requestedByAcc Account  @relation("ReservationRequestedBy", fields: [requestedBy], references: [id])
+  reviewedByAcc  Account? @relation("ReservationReviewedBy", fields: [reviewedBy], references: [id])
+
+  @@index([resourceId, startTime, endTime])
+  @@map("reservations")
+  @@schema("bookings")
+}
+
+// ============================================================
+// AUDIT MODULE
+// ============================================================
+
+model AuditEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  actorEmail String?  @map("actor_email") @db.VarChar(255)
+  action     String   @db.VarChar(100)
+  module     String   @db.VarChar(50)
+  targetType String?  @map("target_type") @db.VarChar(50)
+  targetId   String?  @map("target_id") @db.Uuid
+  payload    Json?
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("events")
+  @@schema("audit")
+}
+
+// ============================================================
+// ANALYTICS MODULE
+// ============================================================
+
+model DailyInventorySnapshot {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  snapshotDate DateTime @map("snapshot_date") @db.Date
+  itemId       String   @map("item_id") @db.Uuid
+  locationId   String   @map("location_id") @db.Uuid
+  quantity     Int
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@unique([snapshotDate, itemId, locationId])
+  @@map("daily_inventory_snapshots")
+  @@schema("analytics")
+}
+
+model BookingMetric {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  metricDate         DateTime @map("metric_date") @db.Date
+  resourceId         String   @map("resource_id") @db.Uuid
+  totalRequests      Int      @default(0) @map("total_requests")
+  approvedCount      Int      @default(0) @map("approved_count")
+  rejectedCount      Int      @default(0) @map("rejected_count")
+  utilizationMinutes Int      @default(0) @map("utilization_minutes")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@unique([metricDate, resourceId])
+  @@map("booking_metrics")
+  @@schema("analytics")
+}
