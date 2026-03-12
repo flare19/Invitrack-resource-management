@@ -496,3 +496,31 @@ pipeline, and any environment variable management — work that could have been
 done once upfront.
 The deferred approach requires disciplined abstraction now to avoid a painful
 refactor when Redis is eventually introduced.
+
+ADR-019: JWT Payload Contains Only Subject and Email
+Date: 2026-03-12
+Decision:
+JWT access tokens will contain only `sub` (account ID) and `email` as payload
+claims. Roles and permissions will not be embedded in the token.
+
+Reasoning:
+Embedding roles and permissions in the token creates a stale data problem —
+if an admin changes a user's role, the change does not take effect until the
+current token expires (up to 15 minutes). For an inventory and bookings system
+where access control changes may need immediate effect, this is unacceptable.
+Fetching roles and permissions fresh from the database on every protected
+request via auth middleware guarantees that access control changes are
+reflected immediately on the next request.
+The performance tradeoff (one additional DB query per request) is acceptable
+at portfolio scale and can be optimized with caching if needed in a later phase.
+
+Tradeoffs:
+Every protected request incurs an additional database query to fetch roles
+and permissions, whereas embedding them in the token would make each request
+self-contained.
+The middleware becomes responsible for attaching a fully resolved user context
+(including roles and permissions) to the request object before it reaches
+controllers and downstream middleware.
+If caching is introduced later (see ADR-018), role/permission lookups become
+a natural candidate for short-lived cache entries, mitigating the query
+overhead without reintroducing stale data risk.
