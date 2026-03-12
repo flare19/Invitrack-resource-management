@@ -41,6 +41,9 @@ export const env = {
   // Bcrypt
   BCRYPT_SALT_ROUNDS: parseInt(process.env.BCRYPT_SALT_ROUNDS ?? '12', 10),
 
+  //Session
+  SESSION_EXPIRES_IN: parseInt(process.env.SESSION_EXPIRES_IN ?? '86400000', 10),
+
   // Logging
   LOG_LEVEL: process.env.LOG_LEVEL ?? 'info',
 
