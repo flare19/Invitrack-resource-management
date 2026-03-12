@@ -13,3 +13,12 @@ export interface AuthTokensDTO {
   accessToken: string;
   refreshToken: string;
 }
+
+export interface RegisterResponseDTO {
+  id: string;
+  email: string;
+  is_verified: boolean;
+  created_at: Date;
+  accessToken: string;
+  refreshToken: string;
+}

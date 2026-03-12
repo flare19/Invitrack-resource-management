@@ -8,11 +8,13 @@ generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
   previewFeatures = ["multiSchema"]
+  engineType      = "binary"
 }
 
 datasource db {
   provider = "postgresql"
   schemas  = ["auth", "users", "inventory", "bookings", "audit", "analytics"]
+  url      = env("DATABASE_URL")
 }
 
 // ============================================================

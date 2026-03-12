@@ -1,9 +1,9 @@
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { env } from '../../config/env';
+import { AppError } from '../../errors/AppError';
 import { createAccount, findAccountByEmail, createSession } from './repository';
-import { RegisterDTO, LoginDTO, AuthTokensDTO } from './types';
+import { RegisterDTO, LoginDTO, AuthTokensDTO, RegisterResponseDTO } from './types';
 import { SignOptions, sign } from 'jsonwebtoken';
 
 function generateTokens(accountId: string, email: string): AuthTokensDTO {
@@ -26,10 +26,10 @@ function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-export async function registerService(data: RegisterDTO): Promise<AuthTokensDTO> {
+export async function registerService(data: RegisterDTO): Promise<RegisterResponseDTO> {
   const existing = await findAccountByEmail(data.email);
   if (existing) {
-    throw { status: 409, code: 'EMAIL_ALREADY_EXISTS', message: 'Email already registered.' };
+    throw new AppError(409, 'EMAIL_ALREADY_EXISTS', 'Email already registered.');
   }
 
   const hashedPassword = await bcrypt.hash(data.password, env.BCRYPT_SALT_ROUNDS);
@@ -42,7 +42,14 @@ export async function registerService(data: RegisterDTO): Promise<AuthTokensDTO>
 
   await createSession(account.id, refreshTokenHash, expiresAt);
 
-  return tokens;
+  return {
+    id: account.id,
+    email: account.email,
+    is_verified: account.isVerified,
+    created_at: account.createdAt,
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+  };
 }
 
 export async function loginService(data: LoginDTO, userAgent?: string, ipAddress?: string): Promise<AuthTokensDTO> {

@@ -2,15 +2,20 @@ import express, { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
 import { env } from './config/env';
 import { AppError } from './errors/AppError';
+import authRouter from './modules/auth/routes';
 
 const app = express();
 
 app.use(helmet());
 app.use(cors({ origin: env.FRONTEND_URL, credentials: true }));
 app.use(express.json());
+app.use(cookieParser());
 app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+
+app.use('/api/v1/auth', authRouter);
 
 // 404
 app.use((_req: Request, _res: Response, next: NextFunction) => {

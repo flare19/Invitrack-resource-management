@@ -524,3 +524,30 @@ controllers and downstream middleware.
 If caching is introduced later (see ADR-018), role/permission lookups become
 a natural candidate for short-lived cache entries, mitigating the query
 overhead without reintroducing stale data risk.
+
+ADR-020: Downgrade from Prisma 7 to Prisma 6
+Date: 2026-03-13
+Decision:
+Downgrade from Prisma 7 to Prisma 6 and set `engineType = "binary"` in the
+generator block. Add `url = env("DATABASE_URL")` explicitly to the datasource
+block in `schema.prisma`.
+
+Reasoning:
+Prisma 7 switched to a WASM-based query compiler as the default engine. This
+compiler is incompatible with Node.js CJS environments — both `ts-node` and
+`tsx` fail to instantiate `PrismaClient` when the WASM runtime is loaded,
+producing a `PrismaClientInitializationError` at startup before any request
+is handled. Prisma 6 uses a binary engine which works correctly in standard
+Node.js CJS environments with no additional configuration.
+Additionally, Prisma 7 introduced `prisma.config.ts` as the mechanism for
+datasource configuration, removing the requirement for `url` in
+`schema.prisma`. Prisma 6 requires `url` to be declared directly in the
+datasource block.
+
+Tradeoffs:
+Prisma 6 binary engine is larger on disk than the WASM compiler and requires
+a platform-specific binary to be present at runtime — relevant at the AWS
+deployment phase.
+Prisma 7 features and any future Prisma 7-only capabilities are unavailable
+until the WASM compatibility issue is resolved upstream or a driver adapter
+is introduced.
