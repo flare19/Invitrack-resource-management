@@ -22,3 +22,13 @@ export interface RegisterResponseDTO {
   accessToken: string;
   refreshToken: string;
 }
+
+export interface LoginResponseDTO {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+}
+
+export interface MessageResponseDTO {
+  message: string;
+}

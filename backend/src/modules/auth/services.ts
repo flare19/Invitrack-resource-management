@@ -2,9 +2,9 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { env } from '../../config/env';
 import { AppError } from '../../errors/AppError';
-import { createAccount, findAccountByEmail, createSession } from './repository';
-import { RegisterDTO, LoginDTO, AuthTokensDTO, RegisterResponseDTO } from './types';
-import { SignOptions, sign } from 'jsonwebtoken';
+import { createAccount, findAccountByEmail, createSession, findSessionByTokenHash, updateSessionToken, deleteSession, findEmailVerificationToken, markEmailVerificationTokenUsed, markAccountVerified, findAccountById } from './repository';
+import { RegisterDTO, LoginDTO, AuthTokensDTO, RegisterResponseDTO, LoginResponseDTO, MessageResponseDTO } from './types';
+import { SignOptions, sign, verify } from 'jsonwebtoken';
 
 function generateTokens(accountId: string, email: string): AuthTokensDTO {
   const accessToken = sign(
@@ -83,4 +83,70 @@ export async function loginService(data: LoginDTO, userAgent?: string, ipAddress
   await createSession(account.id, refreshTokenHash, expiresAt, userAgent, ipAddress);
 
   return tokens;
+}
+
+export async function refreshService(rawToken: string): Promise<AuthTokensDTO> {
+  const tokenHash = hashToken(rawToken);
+  const session = await findSessionByTokenHash(tokenHash);
+
+  if (!session) {
+    throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Refresh token not found.');
+  }
+
+  if (session.expiresAt < new Date()) {
+    throw new AppError(401, 'REFRESH_TOKEN_EXPIRED', 'Refresh token has expired.');
+  }
+
+  try {
+    verify(rawToken, env.JWT_REFRESH_SECRET);
+  } catch {
+    throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Refresh token is invalid.');
+  }
+
+  const account = await findAccountById(session.accountId);
+
+  if (!account) {
+    throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Account no longer exists.');
+  }
+
+  const newTokens = generateTokens(account.id, account.email);
+  const newTokenHash = hashToken(newTokens.refreshToken);
+  const newExpiresAt = new Date(Date.now() + env.SESSION_EXPIRES_IN);
+
+  await updateSessionToken(session.id, newTokenHash, newExpiresAt);
+
+  return newTokens;
+}
+
+export async function logoutService(rawToken: string): Promise<void> {
+  const tokenHash = hashToken(rawToken);
+  const session = await findSessionByTokenHash(tokenHash);
+
+  if (!session) {
+    return; // Already gone — treat as success, just clear the cookie
+  }
+
+  await deleteSession(session.id);
+}
+
+export async function verifyEmailService(rawToken: string): Promise<MessageResponseDTO> {
+  const tokenHash = hashToken(rawToken);
+  const record = await findEmailVerificationToken(tokenHash);
+
+  if (!record) {
+    throw new AppError(400, 'INVALID_TOKEN', 'Verification token is invalid.');
+  }
+
+  if (record.expires_at < new Date()) {
+    throw new AppError(400, 'TOKEN_EXPIRED', 'Verification token has expired.');
+  }
+
+  if (record.used_at !== null) {
+    throw new AppError(400, 'TOKEN_ALREADY_USED', 'Verification token has already been used.');
+  }
+
+  await markEmailVerificationTokenUsed(record.id);
+  await markAccountVerified(record.account_id);
+
+  return { message: 'Email verified successfully.' };
 }

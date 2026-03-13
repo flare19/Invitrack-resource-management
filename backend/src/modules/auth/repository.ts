@@ -56,3 +56,57 @@ export async function deleteSession(sessionId: string) {
     where: { id: sessionId },
   });
 }
+
+export async function updateSessionToken(
+  sessionId: string,
+  newTokenHash: string,
+  newExpiresAt: Date
+) {
+  return prisma.session.update({
+    where: { id: sessionId },
+    data: {
+      refreshToken: newTokenHash,
+      expiresAt: newExpiresAt,
+    },
+  });
+}
+
+export async function createEmailVerificationToken(
+  accountId: string,
+  tokenHash: string,
+  expiresAt: Date
+) {
+  return prisma.emailVerificationToken.create({
+    data: {
+      account_id: accountId,
+      token_hash: tokenHash,
+      expires_at: expiresAt,
+    },
+  });
+}
+
+export async function findEmailVerificationToken(tokenHash: string) {
+  return prisma.emailVerificationToken.findUnique({
+    where: { token_hash: tokenHash },
+  });
+}
+
+export async function markEmailVerificationTokenUsed(tokenId: string) {
+  return prisma.emailVerificationToken.update({
+    where: { id: tokenId },
+    data: { used_at: new Date() },
+  });
+}
+
+export async function markAccountVerified(accountId: string) {
+  return prisma.account.update({
+    where: { id: accountId },
+    data: { isVerified: true },
+  });
+}
+
+export async function findAccountById(id: string) {
+  return prisma.account.findUnique({
+    where: { id },
+  });
+}
