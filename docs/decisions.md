@@ -551,3 +551,22 @@ deployment phase.
 Prisma 7 features and any future Prisma 7-only capabilities are unavailable
 until the WASM compatibility issue is resolved upstream or a driver adapter
 is introduced.
+
+## ADR-021 — Added `auth.email_verification_tokens` Table to Schema
+
+| Field  | Value      |
+|--------|------------|
+| Date   | 2026-03-13 |
+| Status | Decided    |
+
+### Decision
+
+A new table `auth.email_verification_tokens` has been added to the `auth` schema module. `database-schema.md` has been updated to reflect this. The Prisma schema will be updated and a new migration run before implementing the verify-email endpoint.
+
+### Rationale
+
+The `GET /auth/verify-email` endpoint requires a token to be validated against a database record. No existing table serves this purpose. Reusing `auth.password_reset_tokens` was considered and rejected — the two tokens have different semantics, different lifecycles, and conflating them would make the audit trail ambiguous and the code harder to reason about.
+
+### Trade-offs Accepted
+
+This was a gap in the original planning documentation. The schema doc is treated as a living source of truth and updated rather than left out of sync with the actual database.

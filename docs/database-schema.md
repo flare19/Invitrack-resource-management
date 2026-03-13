@@ -73,6 +73,17 @@ Tracks active JWT refresh token sessions.
 
 ---
 
+### `auth.email_verification_tokens`
+
+| Column         | Type          | Constraints                           | Notes                      |
+|----------------|---------------|---------------------------------------|----------------------------|
+| `id`           | `UUID`        | PK, DEFAULT gen_random_uuid()         |                            |
+| `account_id`   | `UUID`        | NOT NULL, FK → auth.accounts(id)      | ON DELETE CASCADE          |
+| `token_hash`   | `TEXT`        | NOT NULL, UNIQUE                      |                            |
+| `expires_at`   | `TIMESTAMPTZ` | NOT NULL                              |                            |
+| `used_at`      | `TIMESTAMPTZ` | NULLABLE                              | Set when token is consumed |
+| `created_at`   | `TIMESTAMPTZ` | NOT NULL, DEFAULT NOW()               |                            |
+
 ## Module: `users`
 
 ### `users.profiles`

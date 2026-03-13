@@ -34,6 +34,7 @@ model Account {
   sessions            Session[]
   oauthProviders      OAuthProvider[]
   passwordResetTokens PasswordResetToken[]
+  email_verification_tokens EmailVerificationToken[]
 
   // users relations
   profile      Profile?
@@ -91,6 +92,20 @@ model PasswordResetToken {
   account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@map("password_reset_tokens")
+  @@schema("auth")
+}
+
+model EmailVerificationToken {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id String   @db.Uuid
+  token_hash String   @unique
+  expires_at DateTime @db.Timestamptz
+  used_at    DateTime? @db.Timestamptz
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  account Account @relation(fields: [account_id], references: [id], onDelete: Cascade)
+
+  @@map("email_verification_tokens")
   @@schema("auth")
 }
 
