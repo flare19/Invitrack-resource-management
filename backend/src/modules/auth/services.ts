@@ -55,24 +55,24 @@ export async function registerService(data: RegisterDTO): Promise<RegisterRespon
 export async function loginService(data: LoginDTO, userAgent?: string, ipAddress?: string): Promise<AuthTokensDTO> {
   const account = await findAccountByEmail(data.email);
   if (!account) {
-    throw { status: 401, code: 'INVALID_CREDENTIALS', message: 'Invalid email or password.' };
+    throw new AppError(401, 'INVALID_CREDENTIALS', 'Invalid email or password.');
   }
 
   if (!account.isActive) {
-    throw { status: 403, code: 'ACCOUNT_INACTIVE', message: 'Account is disabled.' };
+    throw new AppError(403, 'ACCOUNT_INACTIVE', 'Account is disabled.');
   }
 
   if (!account.isVerified) {
-    throw { status: 403, code: 'EMAIL_NOT_VERIFIED', message: 'Please verify your email before logging in.' };
+    throw new AppError(403, 'EMAIL_NOT_VERIFIED', 'Please verify your email before logging in.');
   }
 
   if (!account.passwordHash) {
-    throw { status: 401, code: 'INVALID_CREDENTIALS', message: 'Invalid email or password.' };
+    throw new AppError(401, 'INVALID_CREDENTIALS', 'Invalid email or password.');
   }
 
   const passwordMatch = await bcrypt.compare(data.password, account.passwordHash);
   if (!passwordMatch) {
-    throw { status: 401, code: 'INVALID_CREDENTIALS', message: 'Invalid email or password.' };
+    throw new AppError(401, 'INVALID_CREDENTIALS', 'Invalid email or password.');
   }
 
   const tokens = generateTokens(account.id, account.email);

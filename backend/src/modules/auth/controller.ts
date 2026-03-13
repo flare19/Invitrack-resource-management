@@ -26,7 +26,10 @@ export async function loginController(
   next: NextFunction
 ): Promise<void> {
   try {
-    const result = await loginService(req.body);
+    const userAgent = req.headers['user-agent'];
+    const ipAddress = req.ip;
+
+    const result = await loginService(req.body, userAgent, ipAddress);
 
     res.cookie('refresh_token', result.refreshToken, {
       httpOnly: true,
