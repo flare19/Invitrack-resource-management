@@ -110,3 +110,44 @@ export async function findAccountById(id: string) {
     where: { id },
   });
 }
+
+export async function findAccountWithPermissions(id: string) {
+  const account = await prisma.account.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      email: true,
+      isActive: true,
+      accountRoles: {
+        select: {
+          role: {
+            select: {
+              name: true,
+              rolePermissions: {
+                select: {
+                  permission: {
+                    select: {
+                      code: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!account) return null;
+
+  return {
+    id: account.id,
+    email: account.email,
+    isActive: account.isActive,
+    roles: account.accountRoles.map((ar) => ar.role.name),
+    permissions: account.accountRoles.flatMap((ar) =>
+      ar.role.rolePermissions.map((rp) => rp.permission.code)
+    ),
+  };
+}
