@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { registerService, loginService, refreshService, logoutService, verifyEmailService } from './services';
+import { registerService, loginService, refreshService, logoutService, verifyEmailService, forgotPasswordService, resetPasswordService } from './services';
 
 export async function registerController(
   req: Request,
@@ -131,6 +131,60 @@ export async function verifyEmailController(
     }
 
     const result = await verifyEmailService(token);
+
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function forgotPasswordController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      res.status(400).json({
+        error: {
+          code: 'MISSING_FIELD',
+          message: 'Email is required.',
+          details: {},
+        },
+      });
+      return;
+    }
+
+    await forgotPasswordService(email);
+
+    res.status(202).end();
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function resetPasswordController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      res.status(400).json({
+        error: {
+          code: 'MISSING_FIELDS',
+          message: 'Token and password are required.',
+          details: {},
+        },
+      });
+      return;
+    }
+
+    const result = await resetPasswordService(token, password);
 
     res.status(200).json(result);
   } catch (err) {

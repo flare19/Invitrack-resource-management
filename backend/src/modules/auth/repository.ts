@@ -151,3 +151,40 @@ export async function findAccountWithPermissions(id: string) {
     ),
   };
 }
+
+export async function createPasswordResetToken(
+  accountId: string,
+  tokenHash: string,
+  expiresAt: Date
+) {
+  return prisma.passwordResetToken.create({
+    data: {
+      accountId: accountId,
+      tokenHash: tokenHash,
+      expiresAt: expiresAt,
+    },
+  });
+}
+
+export async function findPasswordResetToken(tokenHash: string) {
+  return prisma.passwordResetToken.findUnique({
+    where: { tokenHash: tokenHash },
+  });
+}
+
+export async function markPasswordResetTokenUsed(tokenId: string) {
+  return prisma.passwordResetToken.update({
+    where: { id: tokenId },
+    data: { usedAt: new Date() },
+  });
+}
+
+export async function updatePasswordHash(
+  accountId: string,
+  newPasswordHash: string
+) {
+  return prisma.account.update({
+    where: { id: accountId },
+    data: { passwordHash: newPasswordHash },
+  });
+}

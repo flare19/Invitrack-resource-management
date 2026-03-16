@@ -2,7 +2,8 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { env } from '../../config/env';
 import { AppError } from '../../errors/AppError';
-import { createAccount, findAccountByEmail, createSession, findSessionByTokenHash, updateSessionToken, deleteSession, findEmailVerificationToken, markEmailVerificationTokenUsed, markAccountVerified, findAccountById } from './repository';
+import { createAccount, findAccountByEmail, createSession, findSessionByTokenHash, updateSessionToken, deleteSession, findEmailVerificationToken, markEmailVerificationTokenUsed, markAccountVerified, findAccountById, createPasswordResetToken, findPasswordResetToken, markPasswordResetTokenUsed, updatePasswordHash } from './repository';
+import { sendPasswordResetEmail } from './email';
 import { RegisterDTO, LoginDTO, AuthTokensDTO, RegisterResponseDTO, LoginResponseDTO, MessageResponseDTO } from './types';
 import { SignOptions, sign, verify } from 'jsonwebtoken';
 
@@ -149,4 +150,46 @@ export async function verifyEmailService(rawToken: string): Promise<MessageRespo
   await markAccountVerified(record.account_id);
 
   return { message: 'Email verified successfully.' };
+}
+
+export async function forgotPasswordService(email: string): Promise<void> {
+  const account = await findAccountByEmail(email);
+
+  if (!account) return; // silent exit — anti-enumeration
+
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = hashToken(rawToken);
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+  await createPasswordResetToken(account.id, tokenHash, expiresAt);
+
+  const resetUrl = `${process.env['APP_URL']}/reset-password?token=${rawToken}`;
+  await sendPasswordResetEmail(account.email, resetUrl);
+}
+
+export async function resetPasswordService(
+  rawToken: string,
+  newPassword: string
+): Promise<MessageResponseDTO> {
+  const tokenHash = hashToken(rawToken);
+  const record = await findPasswordResetToken(tokenHash);
+
+  if (!record) {
+    throw new AppError(400, 'INVALID_TOKEN', 'Password reset token is invalid.');
+  }
+
+  if (record.expiresAt < new Date()) {
+    throw new AppError(400, 'TOKEN_EXPIRED', 'Password reset token has expired.');
+  }
+
+  if (record.usedAt !== null) {
+    throw new AppError(400, 'TOKEN_ALREADY_USED', 'Password reset token has already been used.');
+  }
+
+  const newPasswordHash = await bcrypt.hash(newPassword, 12);
+
+  await markPasswordResetTokenUsed(record.id);
+  await updatePasswordHash(record.accountId, newPasswordHash);
+
+  return { message: 'Password updated successfully.' };
 }
