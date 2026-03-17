@@ -2,18 +2,22 @@ import express, { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
+import passport from 'passport';
 import cookieParser from 'cookie-parser';
 import { env } from './config/env';
 import { AppError } from './errors/AppError';
 import authRouter from './modules/auth/routes';
+import { configureOAuthStrategies } from './modules/auth/services';
 
 const app = express();
 
 app.use(helmet());
 app.use(cors({ origin: env.FRONTEND_URL, credentials: true }));
 app.use(express.json());
-app.use(cookieParser());
+app.use(cookieParser(env.COOKIE_SECRET));
 app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+
+configureOAuthStrategies();
 
 app.use('/api/v1/auth', authRouter);
 

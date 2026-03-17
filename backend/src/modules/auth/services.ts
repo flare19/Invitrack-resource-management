@@ -1,11 +1,17 @@
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
+import passport from 'passport';
 import { env } from '../../config/env';
 import { AppError } from '../../errors/AppError';
-import { createAccount, findAccountByEmail, createSession, findSessionByTokenHash, updateSessionToken, deleteSession, findEmailVerificationToken, markEmailVerificationTokenUsed, markAccountVerified, findAccountById, createPasswordResetToken, findPasswordResetToken, markPasswordResetTokenUsed, updatePasswordHash } from './repository';
+import { createAccount, findAccountByEmail, createSession, findSessionByTokenHash, updateSessionToken, deleteSession, 
+  findEmailVerificationToken, markEmailVerificationTokenUsed, markAccountVerified, findAccountById, createPasswordResetToken, 
+  findPasswordResetToken, markPasswordResetTokenUsed, updatePasswordHash, findOrCreateOAuthAccount } from './repository';
 import { sendPasswordResetEmail } from './email';
 import { RegisterDTO, LoginDTO, AuthTokensDTO, RegisterResponseDTO, LoginResponseDTO, MessageResponseDTO } from './types';
 import { SignOptions, sign, verify } from 'jsonwebtoken';
+import { Strategy as GoogleStrategy, Profile as GoogleProfile } from 'passport-google-oauth20';
+import { Strategy as GithubStrategy, Profile as GithubProfile } from 'passport-github2';
+import jwt from 'jsonwebtoken';
 
 function generateTokens(accountId: string, email: string): AuthTokensDTO {
   const accessToken = sign(
@@ -192,4 +198,109 @@ export async function resetPasswordService(
   await updatePasswordHash(record.accountId, newPasswordHash);
 
   return { message: 'Password updated successfully.' };
+}
+
+export function configureOAuthStrategies(): void {
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: env.GOOGLE_CLIENT_ID,
+        clientSecret: env.GOOGLE_CLIENT_SECRET,
+        callbackURL: `${env.OAUTH_CALLBACK_BASE_URL}/api/v1/auth/oauth/google/callback`,
+      },
+      async (_accessToken: string,
+            _refreshToken: string,
+            profile: GoogleProfile,
+            done: (error: unknown, user?: Express.User | false) => void) => {
+        try {
+          const email = profile.emails?.[0]?.value;
+          const fullName = profile.displayName ?? 'Google User';
+
+          if (!email) {
+            return done(new AppError(400, 'OAUTH_NO_EMAIL', 'No email returned from Google.'));
+          }
+
+          const result = await findOrCreateOAuthAccount(
+            'google',
+            profile.id,
+            email,
+            fullName
+          );
+
+          if (result.conflict) {
+            return done(new AppError(409, 'EMAIL_CONFLICT', 'This email is already registered with a password. Please log in with email and password.'));
+          }
+
+          return done(null, result.account!);
+        } catch (err) {
+          return done(err);
+        }
+      }
+    )
+  );
+
+  passport.use(
+    new GithubStrategy(
+      {
+        clientID: env.GITHUB_CLIENT_ID,
+        clientSecret: env.GITHUB_CLIENT_SECRET,
+        callbackURL: `${env.OAUTH_CALLBACK_BASE_URL}/api/v1/auth/oauth/github/callback`,
+      },
+      async (_accessToken: string,
+            _refreshToken: string,
+            profile: GithubProfile,
+            done: (error: unknown, user?: Express.User | false) => void) => {
+        try {
+          const email = profile.emails?.[0]?.value;
+          const fullName = profile.displayName ?? profile.username ?? 'GitHub User';
+
+          if (!email) {
+            return done(new AppError(400, 'OAUTH_NO_EMAIL', 'No email returned from GitHub.'));
+          }
+
+          const result = await findOrCreateOAuthAccount(
+            'github',
+            profile.id,
+            email,
+            fullName
+          );
+
+          if (result.conflict) {
+            return done(new AppError(409, 'EMAIL_CONFLICT', 'This email is already registered with a password. Please log in with email and password.'));
+          }
+
+          return done(null, result.account!);
+        } catch (err) {
+          return done(err);
+        }
+      }
+    )
+  );
+}
+
+export async function handleOAuthCallbackService(
+  account: { id: string; email: string },
+  userAgent: string | undefined,
+  ipAddress: string | undefined
+): Promise<{ accessToken: string; refreshToken: string }> {
+  const rawRefreshToken = crypto.randomBytes(32).toString('hex');
+  const hashedRefreshToken = hashToken(rawRefreshToken);
+
+  const expiresAt = new Date(Date.now() + Number(env.SESSION_EXPIRES_IN));
+
+  await createSession(
+    account.id,
+    hashedRefreshToken,
+    expiresAt,
+    userAgent,
+    ipAddress
+  );
+
+  const accessToken = jwt.sign(
+    { sub: account.id, email: account.email },
+    env.JWT_ACCESS_SECRET,
+    { expiresIn: '15m' }
+  );
+
+  return { accessToken, refreshToken: rawRefreshToken };
 }

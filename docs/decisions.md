@@ -570,3 +570,19 @@ The `GET /auth/verify-email` endpoint requires a token to be validated against a
 ### Trade-offs Accepted
 
 This was a gap in the original planning documentation. The schema doc is treated as a living source of truth and updated rather than left out of sync with the actual database.
+
+### ADR-022: OAuth 2.0 Implementation Strategy
+Status: Accepted
+Date: 2025-03-17
+Context
+The auth module requires OAuth 2.0 support for Google and GitHub providers, as specified in api-reference.md (GET /auth/oauth/:provider and GET /auth/oauth/:provider/callback). Three decisions needed to be made: OAuth library, state parameter storage for CSRF protection, and email conflict handling.
+Decisions
+1. Library: Passport.js
+Passport.js with passport-google-oauth20 and passport-github2 was chosen over a manual flow or oauth4webapi. The reasoning mirrors why Express is used over raw Node.js — battle-tested abstractions encode edge case handling, provider quirks, and token exchange logic that would otherwise need to be written and maintained manually.
+Passport is used in one-shot / stateless mode (session: false). It handles the OAuth redirect and callback exchange only. After the profile is returned via the verify callback, control is handed to the existing createSession service logic — the same path used by password-based login. Passport's session serialization is never invoked.
+2. State Parameter Storage: Signed HttpOnly Cookie
+A short-lived signed HttpOnly cookie is used to store the OAuth state parameter for CSRF protection. Before redirecting to the provider, a random state value is generated and set as a cookie. On callback, the state from the query string is compared against the cookie value; mismatch results in a 400 error. The cookie is cleared after verification regardless of outcome.
+Redis was considered but is explicitly deferred to a later module. In-memory storage was rejected due to instability across restarts. A signed cookie is stateless, requires no external dependency, and is a production-realistic pattern.
+A COOKIE_SECRET environment variable is introduced for signing. It is added to .env.example and must be set in all environments.
+3. Email Conflict Handling: Hard 409
+When a callback arrives for an email address already registered via password, a 409 error is returned immediately. The api-reference.md notes a "link accounts" email as a UX improvement worth considering — this is acknowledged and explicitly deferred. Scope is controlled at this stage; the conflict case is cleanly handled and the error message is descriptive enough for a frontend to act on.

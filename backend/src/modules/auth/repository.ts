@@ -188,3 +188,77 @@ export async function updatePasswordHash(
     data: { passwordHash: newPasswordHash },
   });
 }
+
+export async function findAccountByProvider(
+  provider: string,
+  providerUid: string
+) {
+  return prisma.oAuthProvider.findUnique({
+    where: {
+      provider_providerUid: {
+        provider,
+        providerUid,
+      },
+    },
+    include: {
+      account: true,
+    },
+  });
+}
+
+export async function findOrCreateOAuthAccount(
+  provider: string,
+  providerUid: string,
+  email: string,
+  fullName: string
+) {
+  const existing = await findAccountByProvider(provider, providerUid);
+  if (existing) return { account: existing.account, created: false, conflict: false };
+
+  const emailConflict = await prisma.account.findUnique({
+    where: { email },
+  });
+
+  if (emailConflict) {
+    return { account: null, created: false, conflict: true };
+  }
+
+  const account = await prisma.$transaction(async (tx) => {
+    const newAccount = await tx.account.create({
+      data: {
+        email: email.toLowerCase(),
+        isVerified: true,
+        oauthProviders: {
+          create: {
+            provider,
+            providerUid,
+          },
+        },
+      },
+    });
+
+    await tx.profile.create({
+      data: {
+        id: newAccount.id,
+        fullName,
+      },
+    });
+
+    const employeeRole = await tx.role.findUnique({
+      where: { name: 'employee' },
+    });
+
+    if (employeeRole) {
+      await tx.accountRole.create({
+        data: {
+          accountId: newAccount.id,
+          roleId: employeeRole.id,
+        },
+      });
+    }
+
+    return newAccount;
+  });
+
+  return { account, created: true, conflict: false };
+}
