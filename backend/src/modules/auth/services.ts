@@ -5,7 +5,7 @@ import { env } from '../../config/env';
 import { AppError } from '../../errors/AppError';
 import { createAccount, findAccountByEmail, createSession, findSessionByTokenHash, updateSessionToken, deleteSession, 
   findEmailVerificationToken, markEmailVerificationTokenUsed, markAccountVerified, findAccountById, createPasswordResetToken, 
-  findPasswordResetToken, markPasswordResetTokenUsed, updatePasswordHash, findOrCreateOAuthAccount } from './repository';
+  findPasswordResetToken, markPasswordResetTokenUsed, updatePasswordHash, findOrCreateOAuthAccount, findSessionById, findSessionsByAccountId } from './repository';
 import { sendPasswordResetEmail } from './email';
 import { RegisterDTO, LoginDTO, AuthTokensDTO, RegisterResponseDTO, LoginResponseDTO, MessageResponseDTO } from './types';
 import { SignOptions, sign, verify } from 'jsonwebtoken';
@@ -303,4 +303,25 @@ export async function handleOAuthCallbackService(
   );
 
   return { accessToken, refreshToken: rawRefreshToken };
+}
+
+export async function getSessionsService(accountId: string) {
+  return findSessionsByAccountId(accountId);
+}
+
+export async function deleteSessionService(
+  sessionId: string,
+  requestingAccountId: string
+): Promise<void> {
+  const session = await findSessionById(sessionId);
+
+  if (!session) {
+    throw new AppError(404, 'SESSION_NOT_FOUND', 'Session not found.');
+  }
+
+  if (session.accountId !== requestingAccountId) {
+    throw new AppError(403, 'FORBIDDEN', 'You cannot delete another account\'s session.');
+  }
+
+  await deleteSession(session.id);
 }

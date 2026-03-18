@@ -262,3 +262,16 @@ export async function findOrCreateOAuthAccount(
 
   return { account, created: true, conflict: false };
 }
+
+export async function findSessionsByAccountId(accountId: string) {
+  return prisma.session.findMany({
+    where: { accountId },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+export async function findSessionById(sessionId: string) {
+  return prisma.session.findUnique({
+    where: { id: sessionId },
+  });
+}

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { registerService, loginService, refreshService, logoutService, verifyEmailService, 
-  forgotPasswordService, resetPasswordService, handleOAuthCallbackService } from './services';
+  forgotPasswordService, resetPasswordService, handleOAuthCallbackService, getSessionsService, deleteSessionService } from './services';
 import crypto from 'crypto';
 import passport from 'passport';
 import { env } from '../../config/env';
@@ -11,7 +11,20 @@ export async function registerController(
   next: NextFunction
 ): Promise<void> {
   try {
-    const result = await registerService(req.body);
+    const { email, password, full_name } = req.body;
+
+    if (!email || !password || !full_name) {
+      res.status(422).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'email, password, and full_name are required.',
+          details: {},
+        },
+      });
+      return;
+    }
+
+    const result = await registerService({ email, password, full_name });
 
     res.status(201).json({
       id: result.id,
@@ -311,6 +324,41 @@ export async function oauthCallback(
         }
       }
     )(req, res, next);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getSessionsController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const sessions = await getSessionsService(req.user!.id);
+
+    res.status(200).json(
+      sessions.map((s) => ({
+        id: s.id,
+        user_agent: s.userAgent,
+        ip_address: s.ipAddress,
+        expires_at: s.expiresAt,
+        created_at: s.createdAt,
+      }))
+    );
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteSessionController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    await deleteSessionService(req.params['id'] as string, req.user!.id);
+    res.status(204).send();
   } catch (err) {
     next(err);
   }
