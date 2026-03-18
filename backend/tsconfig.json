@@ -42,5 +42,6 @@
 
     "esModuleInterop": true,
   },
-  "exclude": ["prisma.config.ts", "prisma"]
+  "include": ["src/**/*"],
+  "exclude": ["prisma.config.ts", "prisma", "node_modules", "dist", "jest.config.ts", "src/test", "src/**/__tests__", "jest"]
 }
