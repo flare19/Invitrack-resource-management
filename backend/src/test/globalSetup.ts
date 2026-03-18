@@ -1,13 +1,19 @@
 import { execSync } from 'child_process';
 import * as dotenv from 'dotenv';
+import * as fs from 'fs';
+import * as path from 'path';
 import { PrismaClient } from '../generated/prisma';
 
 export default async function globalSetup() {
-  dotenv.config({ path: '.env.test' });
+  // Parse .env.test directly so we can pass it to child processes
+  const testEnv = dotenv.parse(fs.readFileSync(path.resolve('.env.test')));
+  
+  process.env['NODE_ENV'] = 'test';
+  Object.assign(process.env, testEnv);
 
   // Push schema to test database
   execSync('npx prisma db push --skip-generate', {
-    env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL },
+    env: { ...process.env, ...testEnv },
     stdio: 'inherit',
   });
 
