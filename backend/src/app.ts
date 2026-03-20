@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser';
 import { env } from './config/env';
 import { AppError } from './errors/AppError';
 import authRouter from './modules/auth/routes';
+import usersRouter from './modules/users/users.routes';
 import { configureOAuthStrategies } from './modules/auth/services';
 
 const app = express();
@@ -20,6 +21,7 @@ app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 configureOAuthStrategies();
 
 app.use('/api/v1/auth', authRouter);
+app.use('/api/v1/users', usersRouter);
 
 // 404
 app.use((_req: Request, _res: Response, next: NextFunction) => {

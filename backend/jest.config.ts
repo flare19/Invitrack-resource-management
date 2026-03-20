@@ -9,7 +9,7 @@ const config: Config = {
       testMatch: ['**/__tests__/**/*.test.ts'],
       testPathIgnorePatterns: ['/node_modules/', '\\.integration\\.test\\.ts$'],
       transform: {
-        '^.+\\.tsx?$': ['ts-jest', { tsconfig: 'src/test/tsconfig.json' }],
+        '^.+\\.tsx?$': ['ts-jest', { tsconfig: '<rootDir>/src/test/tsconfig.json' }],
       },
       moduleNameMapper: {
         '^@/(.*)$': '<rootDir>/src/$1',
@@ -24,7 +24,7 @@ const config: Config = {
       globalTeardown: '<rootDir>/src/test/globalTeardown.ts',
       setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts'],
       transform: {
-        '^.+\\.tsx?$': ['ts-jest', { tsconfig: 'src/test/tsconfig.json' }],
+        '^.+\\.tsx?$': ['ts-jest', { tsconfig: '<rootDir>/src/test/tsconfig.json' }],
       },
       moduleNameMapper: {
         '^@/(.*)$': '<rootDir>/src/$1',
