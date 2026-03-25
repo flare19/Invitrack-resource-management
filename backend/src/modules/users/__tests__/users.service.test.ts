@@ -4,7 +4,11 @@ import { getMyProfileService, updateMyProfileService, uploadAvatarService, listU
   updateUserByIdService,
   listRolesService,
   assignRoleService,
-  removeRoleService, } from '../users.service';
+  removeRoleService,
+  listPermissionsService,
+  listRolePermissionsService,
+  assignPermissionToRoleService,
+  removePermissionFromRoleService } from '../users.service';
 
 // ─── Mock the entire repository module ───────────────────────────────────────
 jest.mock('../repository');
@@ -17,7 +21,13 @@ import { findAccountWithProfile, updateProfileById, findManyAccounts,
   findAccountRole,
   createAccountRole,
   deleteAccountRole,
-  findAccountById } from '../repository';
+  findAccountById,
+  listPermissions,
+  listRolePermissions,
+  findPermissionById,
+  findRolePermission,
+  assignPermissionToRole,
+  removePermissionFromRole } from '../repository';
 
 // ─── Cast mocks ───────────────────────────────────────────────────────────────
 const mockFindAccountWithProfile = findAccountWithProfile as jest.MockedFunction<typeof findAccountWithProfile>;
@@ -30,7 +40,12 @@ const mockFindAccountRole = findAccountRole as jest.MockedFunction<typeof findAc
 const mockCreateAccountRole = createAccountRole as jest.MockedFunction<typeof createAccountRole>;
 const mockDeleteAccountRole = deleteAccountRole as jest.MockedFunction<typeof deleteAccountRole>;
 const mockFindAccountById = findAccountById as jest.MockedFunction<typeof findAccountById>;
-
+const mockListPermissions = listPermissions as jest.MockedFunction<typeof listPermissions>;
+const mockListRolePermissions = listRolePermissions as jest.MockedFunction<typeof listRolePermissions>;
+const mockFindPermissionById = findPermissionById as jest.MockedFunction<typeof findPermissionById>;
+const mockFindRolePermission = findRolePermission as jest.MockedFunction<typeof findRolePermission>;
+const mockAssignPermissionToRole = assignPermissionToRole as jest.MockedFunction<typeof assignPermissionToRole>;
+const mockRemovePermissionFromRole = removePermissionFromRole as jest.MockedFunction<typeof removePermissionFromRole>;
 
 // ─── Additional fixtures ──────────────────────────────────────────────────────
 const fakeRoles = [
@@ -370,5 +385,122 @@ describe('removeRoleService', () => {
     );
 
     expect(mockDeleteAccountRole).not.toHaveBeenCalled();
+  });
+});
+
+// ─── listPermissionsService ───────────────────────────────────────────────────
+
+describe('listPermissionsService', () => {
+  it('returns all permissions', async () => {
+    const permissions = [
+      { id: 1, code: 'inventory:write', description: 'Write inventory' },
+      { id: 2, code: 'bookings:approve', description: 'Approve bookings' },
+    ];
+    mockListPermissions.mockResolvedValue(permissions);
+
+    const result = await listPermissionsService();
+    expect(result).toEqual(permissions);
+    expect(mockListPermissions).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─── listRolePermissionsService ───────────────────────────────────────────────
+
+describe('listRolePermissionsService', () => {
+  it('returns permissions for a valid role', async () => {
+    const role = { id: 2, name: 'manager', description: null, priority: 50 };
+    const rows = [
+      { roleId: 2, permissionId: 1, permission: { id: 1, code: 'inventory:write', description: null } },
+    ];
+    mockFindRoleById.mockResolvedValue(role);
+    mockListRolePermissions.mockResolvedValue(rows);
+
+    const result = await listRolePermissionsService(2);
+    expect(result).toEqual([{ id: 1, code: 'inventory:write', description: null }]);
+  });
+
+  it('throws 404 if role not found', async () => {
+    mockFindRoleById.mockResolvedValue(null);
+    await expect(listRolePermissionsService(99)).rejects.toThrow(AppError);
+    await expect(listRolePermissionsService(99)).rejects.toMatchObject({ statusCode: 404, code: 'ROLE_NOT_FOUND' });
+  });
+
+  it('throws 404 for out-of-range roleId', async () => {
+    await expect(listRolePermissionsService(99999)).rejects.toMatchObject({ statusCode: 404, code: 'ROLE_NOT_FOUND' });
+    expect(mockFindRoleById).not.toHaveBeenCalled();
+  });
+});
+
+// ─── assignPermissionToRoleService ───────────────────────────────────────────
+
+describe('assignPermissionToRoleService', () => {
+  const role = { id: 2, name: 'manager', description: null, priority: 50 };
+  const permission = { id: 1, code: 'inventory:write', description: null };
+
+  it('assigns a permission to a role', async () => {
+    mockFindRoleById.mockResolvedValue(role);
+    mockFindPermissionById.mockResolvedValue(permission);
+    mockFindRolePermission.mockResolvedValue(null);
+    mockAssignPermissionToRole.mockResolvedValue({ roleId: 2, permissionId: 1 });
+
+    const result = await assignPermissionToRoleService(2, 1);
+    expect(result).toEqual({ roleId: 2, permissionId: 1 });
+  });
+
+  it('throws 404 if role not found', async () => {
+    mockFindRoleById.mockResolvedValue(null);
+    await expect(assignPermissionToRoleService(2, 1)).rejects.toMatchObject({ statusCode: 404, code: 'ROLE_NOT_FOUND' });
+  });
+
+  it('throws 404 if permission not found', async () => {
+    mockFindRoleById.mockResolvedValue(role);
+    mockFindPermissionById.mockResolvedValue(null);
+    await expect(assignPermissionToRoleService(2, 1)).rejects.toMatchObject({ statusCode: 404, code: 'PERMISSION_NOT_FOUND' });
+  });
+
+  it('throws 409 if already assigned', async () => {
+    mockFindRoleById.mockResolvedValue(role);
+    mockFindPermissionById.mockResolvedValue(permission);
+    mockFindRolePermission.mockResolvedValue({ roleId: 2, permissionId: 1 });
+    await expect(assignPermissionToRoleService(2, 1)).rejects.toMatchObject({ statusCode: 409, code: 'PERMISSION_ALREADY_ASSIGNED' });
+  });
+
+  it('throws 404 for out-of-range roleId', async () => {
+    await expect(assignPermissionToRoleService(99999, 1)).rejects.toMatchObject({ statusCode: 404, code: 'ROLE_NOT_FOUND' });
+    expect(mockFindRoleById).not.toHaveBeenCalled();
+  });
+
+  it('throws 404 for out-of-range permissionId', async () => {
+    mockFindRoleById.mockResolvedValue(role);
+    await expect(assignPermissionToRoleService(2, 99999)).rejects.toMatchObject({ statusCode: 404, code: 'PERMISSION_NOT_FOUND' });
+    expect(mockFindPermissionById).not.toHaveBeenCalled();
+  });
+});
+
+// ─── removePermissionFromRoleService ─────────────────────────────────────────
+
+describe('removePermissionFromRoleService', () => {
+  it('removes an existing assignment', async () => {
+    mockFindRolePermission.mockResolvedValue({ roleId: 2, permissionId: 1 });
+    mockRemovePermissionFromRole.mockResolvedValue({ roleId: 2, permissionId: 1 });
+
+    await expect(removePermissionFromRoleService(2, 1)).resolves.toBeUndefined();
+    expect(mockRemovePermissionFromRole).toHaveBeenCalledWith(2, 1);
+  });
+
+  it('throws 404 if assignment not found', async () => {
+    mockFindRolePermission.mockResolvedValue(null);
+    await expect(removePermissionFromRoleService(2, 1)).rejects.toMatchObject({ statusCode: 404, code: 'ASSIGNMENT_NOT_FOUND' });
+    expect(mockRemovePermissionFromRole).not.toHaveBeenCalled();
+  });
+
+  it('throws 404 for out-of-range roleId', async () => {
+    await expect(removePermissionFromRoleService(99999, 1)).rejects.toMatchObject({ statusCode: 404, code: 'ROLE_NOT_FOUND' });
+    expect(mockFindRolePermission).not.toHaveBeenCalled();
+  });
+
+  it('throws 404 for out-of-range permissionId', async () => {
+    await expect(removePermissionFromRoleService(2, 99999)).rejects.toMatchObject({ statusCode: 404, code: 'PERMISSION_NOT_FOUND' });
+    expect(mockFindRolePermission).not.toHaveBeenCalled();
   });
 });

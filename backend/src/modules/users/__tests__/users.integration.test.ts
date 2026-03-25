@@ -173,6 +173,12 @@ async function registerAndLoginAs(
   };
 }
 
+let adminToken: string;
+let managerToken: string;
+let employeeToken: string;
+let inventoryWritePermissionId: number;
+let bookingsApprovePermissionId: number;
+
 // ═════════════════════════════════════════════════════════════════════════════
 // GET /users/roles
 // ═════════════════════════════════════════════════════════════════════════════
@@ -647,6 +653,286 @@ describe('DELETE /api/v1/users/:id/roles/:role_id', () => {
     const res = await request(app)
       .delete('/api/v1/users/00000000-0000-0000-0000-000000000000/roles/1');
 
+    expect(res.status).toBe(401);
+  });
+});
+
+beforeAll(async () => {
+  const admin = await registerAndLoginAs('admin', 'admin-perms@example.com');
+  const manager = await registerAndLoginAs('manager', 'manager-perms@example.com');
+  const employee = await registerAndLoginAs('employee', 'employee-perms@example.com');
+
+  adminToken = admin.accessToken;
+  managerToken = manager.accessToken;
+  employeeToken = employee.accessToken;
+
+  // Seed two permissions for use across tests
+  const p1 = await prisma.permission.create({
+    data: { code: 'inventory:write', description: 'Write inventory' },
+  });
+  const p2 = await prisma.permission.create({
+    data: { code: 'bookings:approve', description: 'Approve bookings' },
+  });
+
+  inventoryWritePermissionId = p1.id;
+  bookingsApprovePermissionId = p2.id;
+});
+
+afterAll(async () => {
+  await prisma.rolePermission.deleteMany({
+    where: { permissionId: { in: [inventoryWritePermissionId, bookingsApprovePermissionId] } },
+  });
+  await prisma.permission.deleteMany({
+    where: { id: { in: [inventoryWritePermissionId, bookingsApprovePermissionId] } },
+  });
+  await prisma.account.deleteMany({
+    where: {
+      email: {
+        in: [
+          'admin-perms@example.com',
+          'manager-perms@example.com',
+          'employee-perms@example.com',
+        ],
+      },
+    },
+  });
+});
+
+// src/modules/users/__tests__/users.integration.test.ts (additions)
+
+// ─── GET /users/permissions ───────────────────────────────────────────────────
+
+describe('GET /api/v1/users/permissions', () => {
+  it('returns 200 with all permissions for admin', async () => {
+  const { accessToken } = await registerAndLoginAs('admin', 'perms-list-admin@example.com');
+
+  const res = await request(app)
+    .get('/api/v1/users/permissions')
+    .set('Authorization', `Bearer ${accessToken}`);
+
+  console.log(res.body); // temporary
+  expect(res.status).toBe(200);
+  expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it('returns 403 for manager', async () => {
+  const { accessToken } = await registerAndLoginAs('manager', 'perms-list-manager@example.com');
+
+  const res = await request(app)
+    .get('/api/v1/users/permissions')
+    .set('Authorization', `Bearer ${accessToken}`);
+
+  expect(res.status).toBe(403);
+  });
+
+  it('returns 403 for employee', async () => {
+    const { accessToken } = await registerAndLoginAs('employee', 'perms-list-employee@example.com');
+
+    const res = await request(app)
+      .get('/api/v1/users/permissions')
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 401 for unauthenticated request', async () => {
+    const res = await request(app).get('/api/v1/users/permissions');
+    expect(res.status).toBe(401);
+  });
+});
+
+// ─── GET /users/roles/:role_id/permissions ────────────────────────────────────
+
+describe('GET /api/v1/users/roles/:role_id/permissions', () => {
+  it('returns 200 with permissions array for a valid role', async () => {
+    const { accessToken } = await registerAndLoginAs('admin', 'roleperms-get-admin@example.com');
+    const role = await prisma.role.findUnique({ where: { name: 'manager' } });
+
+    const res = await request(app)
+      .get(`/api/v1/users/roles/${role!.id}/permissions`)
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it('returns 404 for a non-existent role', async () => {
+    const { accessToken } = await registerAndLoginAs('admin', 'roleperms-404-admin@example.com');
+
+    const res = await request(app)
+      .get('/api/v1/users/roles/9999/permissions')
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 400 for a non-numeric role_id', async () => {
+    const { accessToken } = await registerAndLoginAs('admin', 'roleperms-400-admin@example.com');
+
+    const res = await request(app)
+      .get('/api/v1/users/roles/abc/permissions')
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 403 for manager', async () => {
+    const { accessToken } = await registerAndLoginAs('manager', 'roleperms-403-manager@example.com');
+    const role = await prisma.role.findUnique({ where: { name: 'manager' } });
+
+    const res = await request(app)
+      .get(`/api/v1/users/roles/${role!.id}/permissions`)
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 401 for unauthenticated request', async () => {
+    const res = await request(app).get('/api/v1/users/roles/1/permissions');
+    expect(res.status).toBe(401);
+  });
+});
+
+// ─── POST /users/roles/:role_id/permissions ───────────────────────────────────
+
+describe('POST /api/v1/users/roles/:role_id/permissions', () => {
+  it('returns 201 and assigns permission to role', async () => {
+    const { accessToken } = await registerAndLoginAs('admin', 'roleperms-post-admin@example.com');
+    const role = await prisma.role.findUnique({ where: { name: 'employee' } });
+    const permission = await prisma.permission.create({ data: { code: 'inventory:write:post1', description: null } });
+
+    const res = await request(app)
+      .post(`/api/v1/users/roles/${role!.id}/permissions`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ permission_id: permission.id });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ role_id: role!.id, permission_id: permission.id });
+  });
+
+  it('returns 409 if permission already assigned', async () => {
+    const { accessToken } = await registerAndLoginAs('admin', 'roleperms-409-admin@example.com');
+    const role = await prisma.role.findUnique({ where: { name: 'employee' } });
+    const permission = await prisma.permission.create({ data: { code: 'inventory:write:post2', description: null } });
+
+    await prisma.rolePermission.create({ data: { roleId: role!.id, permissionId: permission.id } });
+
+    const res = await request(app)
+      .post(`/api/v1/users/roles/${role!.id}/permissions`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ permission_id: permission.id });
+
+    expect(res.status).toBe(409);
+  });
+
+  it('returns 404 for non-existent role', async () => {
+    const { accessToken } = await registerAndLoginAs('admin', 'roleperms-404role-admin@example.com');
+    const permission = await prisma.permission.create({ data: { code: 'inventory:write:post3', description: null } });
+
+    const res = await request(app)
+      .post('/api/v1/users/roles/9999/permissions')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ permission_id: permission.id });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 for non-existent permission', async () => {
+    const { accessToken } = await registerAndLoginAs('admin', 'roleperms-404perm-admin@example.com');
+    const role = await prisma.role.findUnique({ where: { name: 'employee' } });
+
+    const res = await request(app)
+      .post(`/api/v1/users/roles/${role!.id}/permissions`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ permission_id: 9999 });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 422 if permission_id is missing', async () => {
+    const { accessToken } = await registerAndLoginAs('admin', 'roleperms-422-admin@example.com');
+    const role = await prisma.role.findUnique({ where: { name: 'employee' } });
+
+    const res = await request(app)
+      .post(`/api/v1/users/roles/${role!.id}/permissions`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({});
+
+    expect(res.status).toBe(422);
+  });
+
+  it('returns 403 for manager', async () => {
+    const { accessToken } = await registerAndLoginAs('manager', 'roleperms-403post-manager@example.com');
+    const role = await prisma.role.findUnique({ where: { name: 'employee' } });
+    const permission = await prisma.permission.create({ data: { code: 'inventory:write:post4', description: null } });
+
+    const res = await request(app)
+      .post(`/api/v1/users/roles/${role!.id}/permissions`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ permission_id: permission.id });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 401 for unauthenticated request', async () => {
+    const role = await prisma.role.findUnique({ where: { name: 'employee' } });
+
+    const res = await request(app)
+      .post(`/api/v1/users/roles/${role!.id}/permissions`)
+      .send({ permission_id: 1 });
+
+    expect(res.status).toBe(401);
+  });
+});
+
+// ─── DELETE /users/roles/:role_id/permissions/:permission_id ──────────────────
+
+describe('DELETE /api/v1/users/roles/:role_id/permissions/:permission_id', () => {
+  it('returns 204 and removes the assignment', async () => {
+    const { accessToken } = await registerAndLoginAs('admin', 'roleperms-del-admin@example.com');
+    const role = await prisma.role.findUnique({ where: { name: 'employee' } });
+    const permission = await prisma.permission.create({ data: { code: 'inventory:write:del1', description: null } });
+    await prisma.rolePermission.create({ data: { roleId: role!.id, permissionId: permission.id } });
+
+    const res = await request(app)
+      .delete(`/api/v1/users/roles/${role!.id}/permissions/${permission.id}`)
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(res.status).toBe(204);
+
+    const assignment = await prisma.rolePermission.findUnique({
+      where: { roleId_permissionId: { roleId: role!.id, permissionId: permission.id } },
+    });
+    expect(assignment).toBeNull();
+  });
+
+  it('returns 404 if assignment does not exist', async () => {
+    const { accessToken } = await registerAndLoginAs('admin', 'roleperms-del404-admin@example.com');
+    const role = await prisma.role.findUnique({ where: { name: 'employee' } });
+    const permission = await prisma.permission.create({ data: { code: 'inventory:write:del2', description: null } });
+
+    const res = await request(app)
+      .delete(`/api/v1/users/roles/${role!.id}/permissions/${permission.id}`)
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 403 for manager', async () => {
+    const { accessToken } = await registerAndLoginAs('manager', 'roleperms-del403-manager@example.com');
+    const role = await prisma.role.findUnique({ where: { name: 'employee' } });
+    const permission = await prisma.permission.create({ data: { code: 'inventory:write:del3', description: null } });
+    await prisma.rolePermission.create({ data: { roleId: role!.id, permissionId: permission.id } });
+
+    const res = await request(app)
+      .delete(`/api/v1/users/roles/${role!.id}/permissions/${permission.id}`)
+      .set('Authorization', `Bearer ${accessToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 401 for unauthenticated request', async () => {
+    const res = await request(app).delete('/api/v1/users/roles/1/permissions/1');
     expect(res.status).toBe(401);
   });
 });
