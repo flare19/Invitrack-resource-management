@@ -221,3 +221,43 @@ export async function findAccountById(accountId: string) {
     where: { id: accountId },
   });
 }
+
+// src/modules/users/repository.ts (additions)
+
+export async function listPermissions() {
+  return prisma.permission.findMany({
+    orderBy: { id: 'asc' },
+  });
+}
+
+export async function listRolePermissions(roleId: number) {
+  return prisma.rolePermission.findMany({
+    where: { roleId },
+    include: { permission: true },
+    orderBy: { permissionId: 'asc' },
+  });
+}
+
+export async function assignPermissionToRole(roleId: number, permissionId: number) {
+  return prisma.rolePermission.create({
+    data: { roleId, permissionId },
+  });
+}
+
+export async function removePermissionFromRole(roleId: number, permissionId: number) {
+  return prisma.rolePermission.delete({
+    where: { roleId_permissionId: { roleId, permissionId } },
+  });
+}
+
+// src/modules/users/repository.ts (additions)
+
+export async function findPermissionById(id: number) {
+  return prisma.permission.findUnique({ where: { id } });
+}
+
+export async function findRolePermission(roleId: number, permissionId: number) {
+  return prisma.rolePermission.findUnique({
+    where: { roleId_permissionId: { roleId, permissionId } },
+  });
+}

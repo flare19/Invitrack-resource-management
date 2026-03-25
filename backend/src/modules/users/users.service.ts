@@ -8,7 +8,13 @@ import { findAccountWithProfile,
   findAccountRole,
   createAccountRole,
   deleteAccountRole,
-  findAccountById } from './repository';
+  findAccountById,
+  listPermissions,
+  listRolePermissions,
+  findPermissionById,
+  findRolePermission,
+  assignPermissionToRole,
+  removePermissionFromRole } from './repository';
 import { UpdateProfileDTO, 
   UserProfileDTO,
   UserListQueryDTO,
@@ -187,4 +193,56 @@ export async function removeRoleService(
   }
 
   await deleteAccountRole(accountId, roleId);
+}
+
+// src/modules/users/service.ts (additions)
+
+export async function listPermissionsService() {
+  return listPermissions();
+}
+
+export async function listRolePermissionsService(roleId: number) {
+  if (roleId > 32767 || roleId < 1) {
+    throw new AppError(404, 'ROLE_NOT_FOUND', 'Role not found.');
+  }
+
+  const role = await findRoleById(roleId);
+  if (!role) throw new AppError(404, 'ROLE_NOT_FOUND', 'Role not found.');
+
+  const rows = await listRolePermissions(roleId);
+  return rows.map((r) => r.permission);
+}
+
+export async function assignPermissionToRoleService(roleId: number, permissionId: number) {
+  if (roleId > 32767 || roleId < 1) {
+    throw new AppError(404, 'ROLE_NOT_FOUND', 'Role not found.');
+  }
+  if (permissionId > 32767 || permissionId < 1) {
+    throw new AppError(404, 'PERMISSION_NOT_FOUND', 'Permission not found.');
+  }
+
+  const role = await findRoleById(roleId);
+  if (!role) throw new AppError(404, 'ROLE_NOT_FOUND', 'Role not found.');
+
+  const permission = await findPermissionById(permissionId);
+  if (!permission) throw new AppError(404, 'PERMISSION_NOT_FOUND', 'Permission not found.');
+
+  const existing = await findRolePermission(roleId, permissionId);
+  if (existing) throw new AppError(409, 'PERMISSION_ALREADY_ASSIGNED', 'Permission is already assigned to this role.');
+
+  return assignPermissionToRole(roleId, permissionId);
+}
+
+export async function removePermissionFromRoleService(roleId: number, permissionId: number) {
+  if (roleId > 32767 || roleId < 1) {
+    throw new AppError(404, 'ROLE_NOT_FOUND', 'Role not found.');
+  }
+  if (permissionId > 32767 || permissionId < 1) {
+    throw new AppError(404, 'PERMISSION_NOT_FOUND', 'Permission not found.');
+  }
+
+  const existing = await findRolePermission(roleId, permissionId);
+  if (!existing) throw new AppError(404, 'ASSIGNMENT_NOT_FOUND', 'Permission is not assigned to this role.');
+
+  await removePermissionFromRole(roleId, permissionId);
 }

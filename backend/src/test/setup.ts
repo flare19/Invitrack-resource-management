@@ -21,6 +21,8 @@ beforeEach(async () => {
     auth.password_reset_tokens,
     auth.sessions,
     auth.oauth_providers,
+    users.role_permissions,
+    users.permissions,
     users.account_roles,
     users.profiles,
     auth.accounts

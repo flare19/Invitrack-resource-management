@@ -9,6 +9,10 @@ import {
   listRolesController,
   assignRoleController,
   removeRoleController,
+  listPermissionsController,
+  listRolePermissionsController,
+  assignPermissionToRoleController,
+  removePermissionFromRoleController
 } from './users.controller';
 import { authenticate, requireRole } from '../auth/middleware';
 
@@ -21,6 +25,10 @@ usersRouter.post('/me/avatar', authenticate, uploadAvatarController);
 
 // ─── Roles (static — must come before /:id) ───────────────────────────────────
 usersRouter.get('/roles', authenticate, listRolesController);
+usersRouter.get('/permissions', authenticate, requireRole('admin'), listPermissionsController);
+usersRouter.get('/roles/:role_id/permissions', authenticate, requireRole('admin'), listRolePermissionsController);
+usersRouter.post('/roles/:role_id/permissions', authenticate, requireRole('admin'), assignPermissionToRoleController);
+usersRouter.delete('/roles/:role_id/permissions/:permission_id', authenticate, requireRole('admin'), removePermissionFromRoleController);
 
 // ─── User list and single user ────────────────────────────────────────────────
 usersRouter.get('/', authenticate, requireRole('admin', 'manager'), listUsersController);

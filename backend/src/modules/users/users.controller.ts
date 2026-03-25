@@ -1,10 +1,15 @@
+import { AppError } from '../../errors/AppError';
 import { Request, Response, NextFunction } from 'express';
 import { getMyProfileService, updateMyProfileService, uploadAvatarService, listUsersService,
   getUserByIdService,
   updateUserByIdService,
   listRolesService,
   assignRoleService,
-  removeRoleService, } from './users.service';
+  removeRoleService,
+  listPermissionsService,
+  listRolePermissionsService,
+  assignPermissionToRoleService,
+  removePermissionFromRoleService } from './users.service';
 
 export async function getMyProfileController(
   req: Request,
@@ -255,4 +260,43 @@ export async function removeRoleController(
   } catch (err) {
     next(err);
   }
+}
+
+// src/modules/users/controller.ts (additions)
+
+export async function listPermissionsController(req: Request, res: Response) {
+  const permissions = await listPermissionsService();
+  res.status(200).json(permissions);
+}
+
+export async function listRolePermissionsController(req: Request, res: Response) {
+  const roleId = parseInt(req.params['role_id'] as string, 10);
+  if (isNaN(roleId)) throw new AppError(400, 'INVALID_ROLE_ID', 'Role ID must be a number.');
+
+  const permissions = await listRolePermissionsService(roleId);
+  res.status(200).json(permissions);
+}
+
+export async function assignPermissionToRoleController(req: Request, res: Response) {
+  const roleId = parseInt(req.params['role_id'] as string, 10);
+  if (isNaN(roleId)) throw new AppError(400, 'INVALID_ROLE_ID', 'Role ID must be a number.');
+
+  const { permission_id } = req.body as { permission_id: unknown };
+  if (typeof permission_id !== 'number' || !Number.isInteger(permission_id)) {
+    throw new AppError(422, 'VALIDATION_ERROR', 'permission_id must be an integer.');
+  }
+
+  const result = await assignPermissionToRoleService(roleId, permission_id);
+  res.status(201).json({ role_id: result.roleId, permission_id: result.permissionId });
+}
+
+export async function removePermissionFromRoleController(req: Request, res: Response) {
+  const roleId = parseInt(req.params['role_id'] as string, 10);
+  const permissionId = parseInt(req.params['permission_id'] as string, 10);
+
+  if (isNaN(roleId)) throw new AppError(400, 'INVALID_ROLE_ID', 'Role ID must be a number.');
+  if (isNaN(permissionId)) throw new AppError(400, 'INVALID_PERMISSION_ID', 'Permission ID must be a number.');
+
+  await removePermissionFromRoleService(roleId, permissionId);
+  res.status(204).send();
 }
