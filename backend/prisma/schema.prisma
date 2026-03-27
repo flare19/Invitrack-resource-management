@@ -206,6 +206,8 @@ model Item {
   unit             String    @db.VarChar(50)
   reorderThreshold Int       @default(0) @map("reorder_threshold")
   isBookable       Boolean   @default(false) @map("is_bookable")
+  isActive  Boolean  @default(true) @map("is_active")
+  version   Int      @default(0)
   imageUrl         String?   @map("image_url") @db.Text
   createdBy        String    @map("created_by") @db.Uuid
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz()
