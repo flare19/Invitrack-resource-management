@@ -497,21 +497,20 @@ Removes a permission from a role in `users.role_permissions`.
 
 🔒 _Requires authentication._
 
-Returns a paginated list of items from `inventory.items`, optionally filtered.
+Returns a paginated list of items from `inventory.items`, optionally filtered. Only items where `is_active = true` are returned.
 
 **Query parameters**
 
-| Param          | Type    | Default | Notes                                       |
-|----------------|---------|---------|---------------------------------------------|
-| `page`         | integer | `1`     |                                             |
-| `per_page`     | integer | `20`    | Max `100`                                   |
-| `category_id`  | UUID    | —       | Filter by category                          |
-| `is_bookable`  | boolean | —       | Filter to bookable items only               |
-| `low_stock`    | boolean | —       | Return items where any location's `quantity` ≤ `reorder_threshold` |
-| `search`       | string  | —       | Partial match on `name` or `sku`            |
+| Param          | Type    | Default | Notes                                                                  |
+|----------------|---------|---------|------------------------------------------------------------------------|
+| `page`         | integer | `1`     |                                                                        |
+| `per_page`     | integer | `20`    | Max `100`                                                              |
+| `category_id`  | UUID    | —       | Filter by category                                                     |
+| `is_bookable`  | boolean | —       | Filter to bookable items only                                          |
+| `low_stock`    | boolean | —       | Return items where any location's `quantity` ≤ `reorder_threshold`    |
+| `search`       | string  | —       | Partial match on `name` or `sku`                                       |
 
 **Response `200`**
-
 ```json
 {
   "data": [
@@ -524,6 +523,8 @@ Returns a paginated list of items from `inventory.items`, optionally filtered.
       "unit": "pcs",
       "reorder_threshold": 2,
       "is_bookable": true,
+      "is_active": true,
+      "version": 3,
       "image_url": "https://s3.example.com/items/uuid.jpg",
       "created_by": "uuid",
       "created_at": "2024-03-06T10:00:00Z",
@@ -540,7 +541,7 @@ Returns a paginated list of items from `inventory.items`, optionally filtered.
 
 🔒 _Requires `inventory:write` permission._
 
-Creates a new item in `inventory.items`. `created_by` is set to the authenticated account's ID.
+Creates a new item in `inventory.items`. `created_by` is set to the authenticated account's ID. `is_active` defaults to `true`, `version` defaults to `0`.
 
 **Request body**
 
@@ -554,14 +555,14 @@ Creates a new item in `inventory.items`. `created_by` is set to the authenticate
 | `reorder_threshold` | integer | No       | Default `0`                             |
 | `is_bookable`       | boolean | No       | Default `false`                         |
 
-**Response `201`** — created item object.
+**Response `201`** — created item object (same shape as list item above).
 
 **Errors**
 
-| Status | Reason                       |
-|--------|------------------------------|
-| `409`  | SKU already exists           |
-| `422`  | Validation failure           |
+| Status | Reason               |
+|--------|----------------------|
+| `409`  | SKU already exists   |
+| `422`  | Validation failure   |
 
 ---
 
@@ -569,18 +570,23 @@ Creates a new item in `inventory.items`. `created_by` is set to the authenticate
 
 🔒 _Requires authentication._
 
-Returns a single item by UUID, including its current stock levels across all locations (joined from `inventory.stock_levels` and `inventory.locations`).
+Returns a single item by UUID, including its current stock levels across all locations (joined from `inventory.stock_levels` and `inventory.locations`). Returns `404` if the item does not exist or `is_active = false`.
 
 **Response `200`**
-
 ```json
 {
   "id": "uuid",
   "sku": "ITEM-001",
   "name": "Projector",
+  "description": "4K conference room projector",
+  "category_id": "uuid",
   "unit": "pcs",
   "reorder_threshold": 2,
   "is_bookable": true,
+  "is_active": true,
+  "version": 3,
+  "image_url": "https://s3.example.com/items/uuid.jpg",
+  "created_by": "uuid",
   "stock_levels": [
     { "location_id": "uuid", "location_name": "Warehouse A", "quantity": 5 },
     { "location_id": "uuid", "location_name": "Office Shelf 3", "quantity": 1 }
@@ -592,9 +598,9 @@ Returns a single item by UUID, including its current stock levels across all loc
 
 **Errors**
 
-| Status | Reason         |
-|--------|----------------|
-| `404`  | Item not found |
+| Status | Reason                          |
+|--------|---------------------------------|
+| `404`  | Item not found or inactive      |
 
 ---
 
@@ -602,20 +608,29 @@ Returns a single item by UUID, including its current stock levels across all loc
 
 🔒 _Requires `inventory:write` permission._
 
-Updates an existing item. Only the fields provided are changed; `sku`, `created_by`, and `created_at` are immutable.
+Updates an existing item using optimistic locking. The client must supply the current `version` value obtained from a prior GET. The server rejects the update with `409` if the submitted `version` does not match the stored value, indicating a concurrent modification. On success, `version` is incremented by 1. Fields `sku`, `created_by`, and `created_at` are immutable.
 
-**Request body** (all fields optional)
+**Request body**
 
-| Field               | Type    |
-|---------------------|---------|
-| `name`              | string  |
-| `description`       | string  |
-| `category_id`       | UUID    |
-| `unit`              | string  |
-| `reorder_threshold` | integer |
-| `is_bookable`       | boolean |
+| Field               | Type    | Required | Notes                                              |
+|---------------------|---------|----------|----------------------------------------------------|
+| `version`           | integer | Yes      | Must match current stored value; rejected if stale |
+| `name`              | string  | No       |                                                    |
+| `description`       | string  | No       |                                                    |
+| `category_id`       | UUID    | No       |                                                    |
+| `unit`              | string  | No       |                                                    |
+| `reorder_threshold` | integer | No       |                                                    |
+| `is_bookable`       | boolean | No       |                                                    |
 
-**Response `200`** — updated item object.
+**Response `200`** — updated item object (same shape as `GET /inventory/items/:id`, without `stock_levels`).
+
+**Errors**
+
+| Status | Reason                                      |
+|--------|---------------------------------------------|
+| `404`  | Item not found or inactive                  |
+| `409`  | Version mismatch — item was modified concurrently |
+| `422`  | Validation failure                          |
 
 ---
 
@@ -623,17 +638,15 @@ Updates an existing item. Only the fields provided are changed; `sku`, `created_
 
 🔒 _Requires `admin` role._
 
-Soft-deletes an item by setting `is_active = false` (if such a column is added) or performs a hard delete only when no stock transactions reference the item. The preferred approach per schema conventions is soft deletion.
+Soft-deletes an item by setting `is_active = false`. The item remains in the database and all historical transaction records referencing it are preserved. Soft-deleted items are excluded from all list and lookup endpoints. Hard deletion is not supported.
 
 **Response `204`** — no content.
 
 **Errors**
 
-| Status | Reason                                       |
-|--------|----------------------------------------------|
-| `409`  | Item has existing transactions; cannot delete |
-
----
+| Status | Reason                                         |
+|--------|------------------------------------------------|
+| `404`  | Item not found or already inactive             |
 
 ### `GET /inventory/categories`
 

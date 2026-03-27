@@ -586,3 +586,45 @@ Redis was considered but is explicitly deferred to a later module. In-memory sto
 A COOKIE_SECRET environment variable is introduced for signing. It is added to .env.example and must be set in all environments.
 3. Email Conflict Handling: Hard 409
 When a callback arrives for an email address already registered via password, a 409 error is returned immediately. The api-reference.md notes a "link accounts" email as a UX improvement worth considering — this is acknowledged and explicitly deferred. Scope is controlled at this stage; the conflict case is cleanly handled and the error message is descriptive enough for a frontend to act on.
+
+## ADR-023 — Soft Delete on `inventory.items` via `is_active` Flag
+
+| Field  | Value      |
+|--------|------------|
+| Date   | 2026-03-27 |
+| Status | Decided    |
+
+### Decision
+
+`inventory.items` uses a soft delete strategy. Deleting an item sets `is_active = false` rather than removing the row. A new `is_active BOOLEAN NOT NULL DEFAULT TRUE` column has been added to the table. All list and lookup endpoints filter to `is_active = true` only.
+
+### Rationale
+
+Hard deletion of inventory items would orphan historical `inventory.transactions` records that reference the item. Since the transactions ledger is immutable and append-only, referential integrity must be preserved. Soft deletion keeps the row in place, retains the full audit trail, and is consistent with the soft-delete pattern already established on `auth.accounts.is_active`.
+
+### Trade-offs Accepted
+
+Inactive items accumulate in the database indefinitely. Queries must consistently filter on `is_active = true` — omitting this filter in future code would silently surface deleted items. A future cleanup or archival job could be introduced if the table grows large.
+
+---
+
+## ADR-024 — Explicit Optimistic Locking on `inventory.items` via `version` Field
+
+| Field  | Value      |
+|--------|------------|
+| Date   | 2026-03-27 |
+| Status | Decided    |
+
+### Decision
+
+`inventory.items` uses explicit optimistic locking for concurrent update protection. A `version INT NOT NULL DEFAULT 0` column has been added to the table. On every `PATCH /inventory/items/:id` request, the client must supply the current `version` value. The server rejects the update with `409 CONFLICT` if the submitted version does not match the stored value. On a successful update, `version` is incremented by 1 atomically in the same Prisma update call.
+
+### Rationale
+
+Multiple users with `inventory:write` permission could simultaneously update the same item. Without a conflict detection mechanism, the last write silently wins and data is lost. Explicit optimistic locking surfaces the conflict to the client, which can re-fetch the latest state and decide how to proceed. The explicit approach (client sends version) is preferred over implicit (server-only increment) because it forces the caller to acknowledge they are working from a known snapshot — accidental stale updates are rejected rather than silently applied.
+
+### Trade-offs Accepted
+
+Every client performing a PATCH must first GET the item to obtain the current `version`. This adds one round-trip for update flows. Version conflicts require the client to implement retry or conflict resolution logic. The `version` field is exposed in all item response shapes to ensure clients always have it available.
+
+---

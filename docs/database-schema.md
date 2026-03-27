@@ -159,20 +159,22 @@ Hierarchical item categories (supports subcategories via self-reference).
 ### `inventory.items`
 Master catalog of all inventory items.
 
-| Column              | Type             | Constraints                            | Notes                              |
-|---------------------|------------------|----------------------------------------|------------------------------------|
-| `id`                | `UUID`           | PK, DEFAULT gen_random_uuid()          |                                    |
-| `sku`               | `VARCHAR(100)`   | NOT NULL, UNIQUE                       | Stock-keeping unit                 |
-| `name`              | `VARCHAR(255)`   | NOT NULL                               |                                    |
-| `description`       | `TEXT`           | NULLABLE                               |                                    |
-| `category_id`       | `UUID`           | NULLABLE, FK → inventory.categories(id)| ON DELETE SET NULL                 |
-| `unit`              | `VARCHAR(50)`    | NOT NULL                               | e.g. `'pcs'`, `'kg'`, `'litres'`  |
-| `reorder_threshold` | `INT`            | NOT NULL, DEFAULT 0                    | Triggers low-stock alert           |
-| `is_bookable`       | `BOOLEAN`        | NOT NULL, DEFAULT FALSE                | Whether item can be reserved       |
-| `image_url`         | `TEXT`           | NULLABLE                               | S3 URL                             |
-| `created_by`        | `UUID`           | NOT NULL, FK → auth.accounts(id)       |                                    |
-| `created_at`        | `TIMESTAMPTZ`    | NOT NULL, DEFAULT NOW()                |                                    |
-| `updated_at`        | `TIMESTAMPTZ`    | NOT NULL, DEFAULT NOW()                |                                    |
+| Column              | Type             | Constraints                             | Notes                                        |
+|---------------------|------------------|-----------------------------------------|----------------------------------------------|
+| `id`                | `UUID`           | PK, DEFAULT gen_random_uuid()           |                                              |
+| `sku`               | `VARCHAR(100)`   | NOT NULL, UNIQUE                        | Stock-keeping unit                           |
+| `name`              | `VARCHAR(255)`   | NOT NULL                                |                                              |
+| `description`       | `TEXT`           | NULLABLE                                |                                              |
+| `category_id`       | `UUID`           | NULLABLE, FK → inventory.categories(id) | ON DELETE SET NULL                           |
+| `unit`              | `VARCHAR(50)`    | NOT NULL                                | e.g. `'pcs'`, `'kg'`, `'litres'`            |
+| `reorder_threshold` | `INT`            | NOT NULL, DEFAULT 0                     | Triggers low-stock alert                     |
+| `is_bookable`       | `BOOLEAN`        | NOT NULL, DEFAULT FALSE                 | Whether item can be reserved                 |
+| `is_active`         | `BOOLEAN`        | NOT NULL, DEFAULT TRUE                  | Soft-delete flag; inactive items are hidden  |
+| `version`           | `INT`            | NOT NULL, DEFAULT 0                     | Incremented on every update; used for optimistic locking on PATCH |
+| `image_url`         | `TEXT`           | NULLABLE                                | S3 URL                                       |
+| `created_by`        | `UUID`           | NOT NULL, FK → auth.accounts(id)        |                                              |
+| `created_at`        | `TIMESTAMPTZ`    | NOT NULL, DEFAULT NOW()                 |                                              |
+| `updated_at`        | `TIMESTAMPTZ`    | NOT NULL, DEFAULT NOW()                 |                                              |
 
 ### `inventory.stock_levels`
 Current quantity per item per location. One row per (item, location) pair.
