@@ -25,6 +25,11 @@ beforeEach(async () => {
     users.permissions,
     users.account_roles,
     users.profiles,
-    auth.accounts
+    auth.accounts,
+    inventory.transactions,
+    inventory.stock_levels,
+    inventory.items,
+    inventory.locations,
+    inventory.categories
     RESTART IDENTITY CASCADE`);
 });
