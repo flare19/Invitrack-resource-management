@@ -229,6 +229,7 @@ Items or assets that can be reserved. Backed by an inventory item.
 | `name`            | `VARCHAR(255)` | NOT NULL                                 | Display name for booking UI        |
 | `quantity`        | `INT`          | NOT NULL, DEFAULT 1, CHECK (> 0)         | Total bookable units of this item  |
 | `is_active`       | `BOOLEAN`      | NOT NULL, DEFAULT TRUE                   |                                    |
+| `created_at`      | `TIMESTAMPZ`   | NOT NULL, DEFAULT NOW()                  |                                    |
 
 ### `bookings.reservations`
 A single booking request for a resource over a time window.
@@ -251,7 +252,7 @@ A single booking request for a resource over a time window.
 
 **Constraint:** `CHECK (end_time > start_time)`
 
-**Overlap prevention:** Enforced via application logic + advisory locks (Redis) at booking creation time. A partial index can assist:
+**Overlap prevention:** Enforced via application logic Postgres advisory locks at booking creation time. A partial index can assist:
 ```sql
 CREATE INDEX idx_reservations_overlap
 ON bookings.reservations (resource_id, start_time, end_time)
