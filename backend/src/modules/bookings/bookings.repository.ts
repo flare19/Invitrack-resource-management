@@ -2,6 +2,7 @@ import prisma from '../../config/prisma';
 import {
   CreateResourceDTO,
   UpdateResourceDTO,
+  CreateReservationDTO,
 } from './bookings.types';
 
 // ============================================================
@@ -61,5 +62,59 @@ export async function updateResource(id: string, data: UpdateResourceDTO) {
 export async function findItemForBooking(itemId: string) {
   return prisma.item.findUnique({
     where: { id: itemId },
+  });
+}
+
+// ============================================================
+// Availability
+// ============================================================
+
+export async function getOverlappingQuantity(
+  resourceId: string,
+  startTime: Date,
+  endTime: Date
+): Promise<number> {
+  const result = await prisma.reservation.aggregate({
+    where: {
+      resourceId,
+      status: { in: ['pending', 'approved'] },
+      startTime: { lt: endTime },
+      endTime: { gt: startTime },
+    },
+    _sum: { quantity: true },
+  });
+
+  return result._sum.quantity ?? 0;
+}
+
+// ============================================================
+// Reservations
+// ============================================================
+
+export async function findUserHighestPriority(accountId: string): Promise<number> {
+  const result = await prisma.accountRole.findMany({
+    where: { accountId },
+    include: { role: true },
+  });
+
+  if (result.length === 0) return 0;
+
+  return Math.max(...result.map((ar) => ar.role.priority));
+}
+
+export async function createReservation(
+  data: CreateReservationDTO & { requested_by: string; priority: number }
+) {
+  return prisma.reservation.create({
+    data: {
+      resourceId: data.resource_id,
+      requestedBy: data.requested_by,
+      quantity: data.quantity,
+      startTime: new Date(data.start_time),
+      endTime: new Date(data.end_time),
+      status: 'pending',
+      priority: data.priority,
+      ...(data.notes !== undefined && { notes: data.notes }),
+    },
   });
 }

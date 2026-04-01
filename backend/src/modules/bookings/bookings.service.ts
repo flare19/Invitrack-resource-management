@@ -1,4 +1,5 @@
 import { AppError } from '../../errors/AppError';
+import prisma from '../../config/prisma';
 import {
   findAllResources,
   findResourceById,
@@ -6,11 +7,16 @@ import {
   createResource,
   updateResource,
   findItemForBooking,
+  getOverlappingQuantity,
+  findUserHighestPriority,
 } from './bookings.repository';
 import {
   ResourceDTO,
   CreateResourceDTO,
   UpdateResourceDTO,
+  CreateReservationDTO,
+  AvailabilityDTO,
+  ReservationDTO,
 } from './bookings.types';
 
 // ============================================================
@@ -81,4 +87,116 @@ export async function updateResourceService(id: string, data: UpdateResourceDTO)
 
   const updated = await updateResource(id, data);
   return formatResource(updated);
+}
+
+function formatReservation(
+  reservation: NonNullable<Awaited<ReturnType<typeof prisma.reservation.create>>>
+): ReservationDTO {
+  return {
+    id: reservation.id,
+    resource_id: reservation.resourceId,
+    requested_by: reservation.requestedBy,
+    quantity: reservation.quantity,
+    start_time: reservation.startTime,
+    end_time: reservation.endTime,
+    status: reservation.status,
+    priority: reservation.priority,
+    notes: reservation.notes ?? null,
+    reviewed_by: reservation.reviewedBy ?? null,
+    reviewed_at: reservation.reviewedAt ?? null,
+    created_at: reservation.createdAt,
+    updated_at: reservation.updatedAt,
+  };
+}
+
+// ============================================================
+// Availability
+// ============================================================
+
+export async function getAvailabilityService(
+  resourceId: string,
+  startTime: Date,
+  endTime: Date
+): Promise<AvailabilityDTO> {
+  const resource = await findResourceById(resourceId);
+
+  if (!resource || !resource.isActive) {
+    throw new AppError(404, 'RESOURCE_NOT_FOUND', 'Resource not found.');
+  }
+
+  const reservedQuantity = await getOverlappingQuantity(resourceId, startTime, endTime);
+
+  return {
+    resource_id: resourceId,
+    total_quantity: resource.quantity,
+    reserved_quantity: reservedQuantity,
+    available_quantity: resource.quantity - reservedQuantity,
+    start_time: startTime,
+    end_time: endTime,
+  };
+}
+
+// ============================================================
+// Reservations
+// ============================================================
+
+export async function createReservationService(
+  data: CreateReservationDTO,
+  accountId: string
+): Promise<ReservationDTO> {
+  const startTime = new Date(data.start_time);
+  const endTime = new Date(data.end_time);
+
+  if (endTime <= startTime) {
+    throw new AppError(400, 'INVALID_TIME_RANGE', 'end_time must be after start_time.');
+  }
+
+  const priority = await findUserHighestPriority(accountId);
+
+  const reservation = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${data.resource_id}))`;
+
+    const resource = await tx.resource.findUnique({
+      where: { id: data.resource_id },
+    });
+
+    if (!resource || !resource.isActive) {
+      throw new AppError(404, 'RESOURCE_NOT_FOUND', 'Resource not found.');
+    }
+
+    const result = await tx.reservation.aggregate({
+      where: {
+        resourceId: data.resource_id,
+        status: { in: ['pending', 'approved'] },
+        startTime: { lt: endTime },
+        endTime: { gt: startTime },
+      },
+      _sum: { quantity: true },
+    });
+
+    const reservedQuantity = result._sum.quantity ?? 0;
+
+    if (data.quantity > resource.quantity - reservedQuantity) {
+      throw new AppError(
+        409,
+        'INSUFFICIENT_AVAILABILITY',
+        'Requested quantity is unavailable in the given time window.'
+      );
+    }
+
+    return tx.reservation.create({
+      data: {
+        resourceId: data.resource_id,
+        requestedBy: accountId,
+        quantity: data.quantity,
+        startTime,
+        endTime,
+        status: 'pending',
+        priority,
+        ...(data.notes !== undefined && { notes: data.notes }),
+      },
+    });
+  });
+
+  return formatReservation(reservation);
 }

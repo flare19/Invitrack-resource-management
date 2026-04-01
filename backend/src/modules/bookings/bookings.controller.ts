@@ -1,10 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
+import { AppError } from '../../errors/AppError';
 import {
   listResourcesService,
   getResourceService,
   createResourceService,
   updateResourceService,
+  getAvailabilityService,
+  createReservationService,
 } from './bookings.service';
+
+import { CreateReservationDTO } from './bookings.types';
 
 // ============================================================
 // Resources
@@ -132,6 +137,80 @@ export async function updateResourceController(
 
     const resource = await updateResourceService(id, { name, quantity, is_active });
     res.status(200).json(resource);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ============================================================
+// Availability
+// ============================================================
+
+export async function getAvailabilityController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const id = req.params['id'] as string;
+    const { start_time, end_time } = req.query as {
+      start_time?: string;
+      end_time?: string;
+    };
+
+    if (!start_time || !end_time) {
+      throw new AppError(400, 'MISSING_PARAMS', 'start_time and end_time are required.');
+    }
+
+    const startTime = new Date(start_time);
+    const endTime = new Date(end_time);
+
+    if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+      throw new AppError(
+        400,
+        'INVALID_DATE',
+        'start_time and end_time must be valid ISO 8601 dates.'
+      );
+    }
+
+    if (endTime <= startTime) {
+      throw new AppError(400, 'INVALID_TIME_RANGE', 'end_time must be after start_time.');
+    }
+
+    const result = await getAvailabilityService(id, startTime, endTime);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ============================================================
+// Reservations
+// ============================================================
+
+export async function createReservationController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const accountId = req.user!.id;
+    const body = req.body as CreateReservationDTO;
+
+    if (!body.resource_id || !body.quantity || !body.start_time || !body.end_time) {
+      throw new AppError(
+        400,
+        'MISSING_FIELDS',
+        'resource_id, quantity, start_time, and end_time are required.'
+      );
+    }
+
+    if (typeof body.quantity !== 'number' || body.quantity < 1) {
+      throw new AppError(422, 'INVALID_QUANTITY', 'quantity must be a positive integer.');
+    }
+
+    const reservation = await createReservationService(body, accountId);
+    res.status(201).json(reservation);
   } catch (err) {
     next(err);
   }
