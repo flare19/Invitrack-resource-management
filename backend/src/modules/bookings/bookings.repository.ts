@@ -118,3 +118,79 @@ export async function createReservation(
     },
   });
 }
+
+// ============================================================
+// Reservation Reads
+// ============================================================
+
+export async function findReservations(filters: {
+  accountId: string;
+  isAdminOrManager: boolean;
+  resourceId?: string;
+  status?: string;
+  requestedBy?: string;
+  from?: Date;
+  to?: Date;
+  page: number;
+  perPage: number;
+}) {
+  const where = {
+    ...(filters.isAdminOrManager
+      ? {
+          ...(filters.requestedBy && { requestedBy: filters.requestedBy }),
+        }
+      : { requestedBy: filters.accountId }),
+    ...(filters.resourceId && { resourceId: filters.resourceId }),
+    ...(filters.status && { status: filters.status }),
+    ...(filters.from && { startTime: { gte: filters.from } }),
+    ...(filters.to && { endTime: { lte: filters.to } }),
+  };
+
+  const [reservations, total] = await prisma.$transaction([
+    prisma.reservation.findMany({
+      where,
+      skip: (filters.page - 1) * filters.perPage,
+      take: filters.perPage,
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.reservation.count({ where }),
+  ]);
+
+  return { reservations, total };
+}
+
+export async function findReservationById(id: string) {
+  return prisma.reservation.findUnique({
+    where: { id },
+  });
+}
+
+// ============================================================
+// Reservation Mutations
+// ============================================================
+
+export async function updateReservation(
+  id: string,
+  data: {
+    notes?: string;
+    status?: string;
+    quantity?: number;
+    startTime?: Date;
+    endTime?: Date;
+    reviewedBy?: string;
+    reviewedAt?: Date;
+  }
+) {
+  return prisma.reservation.update({
+    where: { id },
+    data: {
+      ...(data.notes !== undefined && { notes: data.notes }),
+      ...(data.status !== undefined && { status: data.status }),
+      ...(data.quantity !== undefined && { quantity: data.quantity }),
+      ...(data.startTime !== undefined && { startTime: data.startTime }),
+      ...(data.endTime !== undefined && { endTime: data.endTime }),
+      ...(data.reviewedBy !== undefined && { reviewedBy: data.reviewedBy }),
+      ...(data.reviewedAt !== undefined && { reviewedAt: data.reviewedAt }),
+    },
+  });
+}

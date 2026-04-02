@@ -7,9 +7,17 @@ import {
   updateResourceService,
   getAvailabilityService,
   createReservationService,
+  listReservationsService,
+  getReservationService,
+  updateReservationService,
+  reviewReservationService,
 } from './bookings.service';
 
-import { CreateReservationDTO } from './bookings.types';
+import { 
+  CreateReservationDTO,
+  UpdateReservationDTO,
+  ReviewReservationDTO,
+ } from './bookings.types';
 
 // ============================================================
 // Resources
@@ -211,6 +219,102 @@ export async function createReservationController(
 
     const reservation = await createReservationService(body, accountId);
     res.status(201).json(reservation);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ============================================================
+// Reservation Reads
+// ============================================================
+
+export async function listReservationsController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const accountId = req.user!.id;
+    const roles = req.user!.roles;
+
+    const page = parseInt(req.query['page'] as string) || 1;
+    const perPage = Math.min(parseInt(req.query['per_page'] as string) || 20, 100);
+
+    const result = await listReservationsService(accountId, roles, {
+      ...(req.query['resource_id'] && { resourceId: req.query['resource_id'] as string }),
+      ...(req.query['status'] && { status: req.query['status'] as string }),
+      ...(req.query['requested_by'] && { requestedBy: req.query['requested_by'] as string }),
+      ...(req.query['from'] && { from: req.query['from'] as string }),
+      ...(req.query['to'] && { to: req.query['to'] as string }),
+      page,
+      perPage,
+    });
+
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getReservationController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const id = req.params['id'] as string;
+    const accountId = req.user!.id;
+    const roles = req.user!.roles;
+
+    const reservation = await getReservationService(id, accountId, roles);
+    res.status(200).json(reservation);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ============================================================
+// Reservation Mutations
+// ============================================================
+
+export async function updateReservationController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const id = req.params['id'] as string;
+    const accountId = req.user!.id;
+    const roles = req.user!.roles;
+    const body = req.body as UpdateReservationDTO;
+
+    if (body.quantity !== undefined && (typeof body.quantity !== 'number' || body.quantity < 1)) {
+      throw new AppError(422, 'INVALID_QUANTITY', 'quantity must be a positive integer.');
+    }
+
+    const reservation = await updateReservationService(id, body, accountId, roles);
+    res.status(200).json(reservation);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function reviewReservationController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const id = req.params['id'] as string;
+    const reviewerId = req.user!.id;
+    const body = req.body as ReviewReservationDTO;
+
+    if (!body.action || !['approve', 'reject'].includes(body.action)) {
+      throw new AppError(400, 'INVALID_ACTION', 'action must be "approve" or "reject".');
+    }
+
+    const reservation = await reviewReservationService(id, body, reviewerId);
+    res.status(200).json(reservation);
   } catch (err) {
     next(err);
   }
