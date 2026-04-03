@@ -159,7 +159,7 @@ export async function createReservationService(
   const priority = await findUserHighestPriority(accountId);
 
   const reservation = await prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${data.resource_id}))`;
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${data.resource_id}))::text`;
 
     const resource = await tx.resource.findUnique({
       where: { id: data.resource_id },
@@ -346,7 +346,7 @@ export async function reviewReservationService(
 
   if (data.action === 'approve') {
     const updated = await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${reservation.resourceId}))`;
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${reservation.resourceId}))::text`;
 
       const resource = await tx.resource.findUnique({
         where: { id: reservation.resourceId },
