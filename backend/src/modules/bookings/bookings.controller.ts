@@ -235,12 +235,12 @@ export async function listReservationsController(
 ): Promise<void> {
   try {
     const accountId = req.user!.id;
-    const roles = req.user!.roles;
+    const permissions = req.user!.permissions;
 
     const page = parseInt(req.query['page'] as string) || 1;
     const perPage = Math.min(parseInt(req.query['per_page'] as string) || 20, 100);
 
-    const result = await listReservationsService(accountId, roles, {
+    const result = await listReservationsService(accountId, permissions, {
       ...(req.query['resource_id'] && { resourceId: req.query['resource_id'] as string }),
       ...(req.query['status'] && { status: req.query['status'] as string }),
       ...(req.query['requested_by'] && { requestedBy: req.query['requested_by'] as string }),
@@ -264,9 +264,9 @@ export async function getReservationController(
   try {
     const id = req.params['id'] as string;
     const accountId = req.user!.id;
-    const roles = req.user!.roles;
+    const permissions = req.user!.permissions;
 
-    const reservation = await getReservationService(id, accountId, roles);
+    const reservation = await getReservationService(id, accountId, permissions);
     res.status(200).json(reservation);
   } catch (err) {
     next(err);
@@ -285,14 +285,14 @@ export async function updateReservationController(
   try {
     const id = req.params['id'] as string;
     const accountId = req.user!.id;
-    const roles = req.user!.roles;
+    const permissions = req.user!.permissions;
     const body = req.body as UpdateReservationDTO;
 
     if (body.quantity !== undefined && (typeof body.quantity !== 'number' || body.quantity < 1)) {
       throw new AppError(422, 'INVALID_QUANTITY', 'quantity must be a positive integer.');
     }
 
-    const reservation = await updateReservationService(id, body, accountId, roles);
+    const reservation = await updateReservationService(id, body, accountId, permissions);
     res.status(200).json(reservation);
   } catch (err) {
     next(err);

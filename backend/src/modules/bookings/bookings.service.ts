@@ -212,7 +212,7 @@ export async function createReservationService(
 
 export async function listReservationsService(
   accountId: string,
-  roles: string[],
+  permissions: string[],
   filters: {
     resourceId?: string;
     status?: string;
@@ -223,14 +223,14 @@ export async function listReservationsService(
     perPage: number;
   }
 ) {
-  const isAdminOrManager = roles.includes('admin') || roles.includes('manager');
+  const canManageBookings = permissions.includes('bookings:write');
 
   const { reservations, total } = await findReservations({
     accountId,
-    isAdminOrManager,
+    isAdminOrManager: canManageBookings,
     ...(filters.resourceId && { resourceId: filters.resourceId }),
     ...(filters.status && { status: filters.status }),
-    ...(filters.requestedBy && isAdminOrManager && { requestedBy: filters.requestedBy }),
+    ...(filters.requestedBy && canManageBookings && { requestedBy: filters.requestedBy }),
     ...(filters.from && { from: new Date(filters.from) }),
     ...(filters.to && { to: new Date(filters.to) }),
     page: filters.page,
@@ -246,7 +246,7 @@ export async function listReservationsService(
 export async function getReservationService(
   id: string,
   accountId: string,
-  roles: string[]
+  permissions: string[]
 ) {
   const reservation = await findReservationById(id);
 
@@ -254,9 +254,9 @@ export async function getReservationService(
     throw new AppError(404, 'RESERVATION_NOT_FOUND', 'Reservation not found.');
   }
 
-  const isAdminOrManager = roles.includes('admin') || roles.includes('manager');
+  const canManageBookings = permissions.includes('bookings:write');
 
-  if (!isAdminOrManager && reservation.requestedBy !== accountId) {
+  if (!canManageBookings && reservation.requestedBy !== accountId) {
     throw new AppError(403, 'FORBIDDEN', 'You do not have access to this reservation.');
   }
 
@@ -271,7 +271,7 @@ export async function updateReservationService(
   id: string,
   data: UpdateReservationDTO,
   accountId: string,
-  roles: string[]
+  permissions: string[]
 ): Promise<ReservationDTO> {
   const reservation = await findReservationById(id);
 
@@ -279,9 +279,9 @@ export async function updateReservationService(
     throw new AppError(404, 'RESERVATION_NOT_FOUND', 'Reservation not found.');
   }
 
-  const isAdminOrManager = roles.includes('admin') || roles.includes('manager');
+  const canManageBookings = permissions.includes('bookings:write');
 
-  if (!isAdminOrManager && reservation.requestedBy !== accountId) {
+  if (!canManageBookings && reservation.requestedBy !== accountId) {
     throw new AppError(403, 'FORBIDDEN', 'You do not have access to this reservation.');
   }
 
@@ -293,7 +293,7 @@ export async function updateReservationService(
     );
   }
 
-  if (!isAdminOrManager) {
+  if (!canManageBookings) {
     if (data.quantity !== undefined || data.start_time !== undefined || data.end_time !== undefined) {
       throw new AppError(403, 'FORBIDDEN', 'Insufficient permissions to update these fields.');
     }

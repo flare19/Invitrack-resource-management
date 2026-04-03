@@ -11,15 +11,15 @@ import {
   updateReservationController,
   reviewReservationController,
 } from './bookings.controller';
-import { authenticate, requireRole, requirePermission } from '../auth/middleware';
+import { authenticate, requirePermission } from '../auth/middleware';
 
 const bookingsRouter = Router();
 
 // ─── Resources ────────────────────────────────────────────────────────────────
 bookingsRouter.get('/resources', authenticate, listResourcesController);
 bookingsRouter.get('/resources/:id', authenticate, getResourceController);
-bookingsRouter.post('/resources', authenticate, requireRole('admin', 'manager'), createResourceController);
-bookingsRouter.patch('/resources/:id', authenticate, requireRole('admin', 'manager'), updateResourceController);
+bookingsRouter.post('/resources', authenticate, requirePermission('bookings:write'), createResourceController);
+bookingsRouter.patch('/resources/:id', authenticate, requirePermission('bookings:write'), updateResourceController);
 bookingsRouter.get('/resources/:id/availability', authenticate, getAvailabilityController);
 
 // ─── Reservations ─────────────────────────────────────────────────────────────
