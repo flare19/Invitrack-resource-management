@@ -57,13 +57,13 @@ export async function authenticate(
 export function requireRole(...roles: string[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
-      next(new AppError(401, 'UNAUTHORIZED', 'Unauthenticated'));
+      return next(new AppError(401, 'UNAUTHORIZED', 'Unauthenticated'));
     }
 
     const hasRole = roles.some((role) => req.user!.roles.includes(role));
 
     if (!hasRole) {
-      next(new AppError(403, 'FORBIDDEN', 'Insufficient role'));
+      return next(new AppError(403, 'FORBIDDEN', 'Insufficient role'));
     }
 
     next();
@@ -73,13 +73,13 @@ export function requireRole(...roles: string[]) {
 export function requirePermission(...perms: string[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
-      next(new AppError(401, 'UNAUTHORIZED', 'Unauthenticated'));
+      return next(new AppError(401, 'UNAUTHORIZED', 'Unauthenticated'));
     }
 
     const hasPermission = perms.some((perm) => req.user!.permissions.includes(perm));
 
     if (!hasPermission) {
-      next(new AppError(403, 'FORBIDDEN', 'Insufficient permissions'));
+      return next(new AppError(403, 'FORBIDDEN', 'Insufficient permissions'));
     }
 
     next();

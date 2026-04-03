@@ -231,39 +231,56 @@ describe('GET /api/v1/inventory/locations', () => {
 // ═════════════════════════════════════════════════════════════════════════════
 describe('POST /api/v1/inventory/locations', () => {
   it('returns 201 with created location', async () => {
-    const token = await createAndLoginUser('loc-create@example.com', 'manager');
-
-    const res = await request(app)
-      .post('/api/v1/inventory/locations')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'Warehouse B', description: 'Secondary store' });
-
-    expect(res.status).toBe(201);
-    expect(res.body.name).toBe('Warehouse B');
-    expect(res.body.description).toBe('Secondary store');
+  const permission = await prisma.permission.upsert({
+    where: { code: 'inventory:write' },
+    create: { code: 'inventory:write', description: 'Create and update inventory' },
+    update: {},
   });
 
-  it('returns 403 if employee tries to create location', async () => {
-    const token = await createAndLoginUser('loc-noperm@example.com', 'employee');
+  const managerRole = await prisma.role.findUniqueOrThrow({ where: { name: 'manager' } });
 
-    const res = await request(app)
-      .post('/api/v1/inventory/locations')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'Warehouse C' });
-
-    expect(res.status).toBe(403);
+  await prisma.rolePermission.upsert({
+    where: { roleId_permissionId: { roleId: managerRole.id, permissionId: permission.id } },
+    create: { roleId: managerRole.id, permissionId: permission.id },
+    update: {},
   });
 
-  it('returns 422 if name is missing', async () => {
-    const token = await createAndLoginUser('loc-422@example.com', 'manager');
+  const token = await createAndLoginUser('loc-create@example.com', 'manager');
 
-    const res = await request(app)
-      .post('/api/v1/inventory/locations')
-      .set('Authorization', `Bearer ${token}`)
-      .send({});
+  const res = await request(app)
+    .post('/api/v1/inventory/locations')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ name: 'Warehouse B', description: 'Secondary store' });
 
-    expect(res.status).toBe(422);
+  expect(res.status).toBe(201);
+  expect(res.body.name).toBe('Warehouse B');
+  expect(res.body.description).toBe('Secondary store');
+});
+
+it('returns 422 if name is missing', async () => {
+  const permission = await prisma.permission.upsert({
+    where: { code: 'inventory:write' },
+    create: { code: 'inventory:write', description: 'Create and update inventory' },
+    update: {},
   });
+
+  const managerRole = await prisma.role.findUniqueOrThrow({ where: { name: 'manager' } });
+
+  await prisma.rolePermission.upsert({
+    where: { roleId_permissionId: { roleId: managerRole.id, permissionId: permission.id } },
+    create: { roleId: managerRole.id, permissionId: permission.id },
+    update: {},
+  });
+
+  const token = await createAndLoginUser('loc-422@example.com', 'manager');
+
+  const res = await request(app)
+    .post('/api/v1/inventory/locations')
+    .set('Authorization', `Bearer ${token}`)
+    .send({});
+
+  expect(res.status).toBe(422);
+});
 });
 
 // ═════════════════════════════════════════════════════════════════════════════

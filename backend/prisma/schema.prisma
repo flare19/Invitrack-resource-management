@@ -284,6 +284,7 @@ model Resource {
   name     String  @db.VarChar(255)
   quantity Int     @default(1)
   isActive Boolean @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   item         Item          @relation(fields: [itemId], references: [id])
   reservations Reservation[]

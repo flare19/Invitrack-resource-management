@@ -832,6 +832,7 @@ Returns all active bookable resources from `bookings.resources`, joined with the
 | `is_active` | boolean | `true`  |                             |
 | `page`      | integer | `1`     |                             |
 | `per_page`  | integer | `20`    | Max `100`                   |
+| `created_at`| string  | `Now()` |                             |                                    
 
 **Response `200`**
 
@@ -843,7 +844,8 @@ Returns all active bookable resources from `bookings.resources`, joined with the
       "item_id": "uuid",
       "name": "Conference Projector A",
       "quantity": 2,
-      "is_active": true
+      "is_active": true,
+      "created_at": "2024-03-06T10:00:00Z"
     }
   ],
   "meta": { "page": 1, "per_page": 20, "total": 8 }

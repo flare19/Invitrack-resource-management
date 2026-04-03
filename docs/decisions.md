@@ -628,3 +628,20 @@ Multiple users with `inventory:write` permission could simultaneously update the
 Every client performing a PATCH must first GET the item to obtain the current `version`. This adds one round-trip for update flows. Version conflicts require the client to implement retry or conflict resolution logic. The `version` field is exposed in all item response shapes to ensure clients always have it available.
 
 ---
+
+### ADR-025 — PostgreSQL Advisory Locks for Booking Conflict Prevention
+
+Supersedes the Redis plan in ADR-006, enabled by the deferral decision in ADR-018.
+
+Decision: Booking overlap prevention uses pg_advisory_xact_lock(hashtext(resource_id)) — a transaction-scoped PostgreSQL advisory lock. The lock is acquired via prisma.$queryRaw as the first statement inside a prisma.$transaction block. The conflict check query and the reservation insert both run within the same transaction. The lock auto-releases on transaction commit or rollback — no explicit unlock needed.
+Lock key strategy: hashtext(resource_id::text) maps the UUID to a bigint suitable for pg_advisory_xact_lock. Collisions are theoretically possible but astronomically unlikely for the scale of this system; if two different resource IDs hash to the same value, the worst case is unnecessary serialization of two unrelated resources, not a correctness failure.
+Why transaction-scoped over session-scoped (pg_advisory_lock): session-scoped locks require explicit release and are not released on transaction rollback, creating leak risk if the application crashes mid-transaction. Transaction-scoped locks are automatically released and are the correct primitive here.
+
+Trade-offs: Under extreme connection pool exhaustion, advisory locks could be delayed or fail. This is a non-issue at portfolio scale. If Redis is introduced later (ADR-018), the lock can be swapped to a Redis-based implementation behind the same service interface with no changes to the controller or repository layer.
+
+### ADR-026 — bookings:approve Permission Seeding Strategy
+
+Decision: bookings:approve is seeded dynamically inside integration test helpers using permission.upsert, identical to the inventory:write pattern established in the inventory module. It is not relied upon from the migration seed. The beforeEach truncation wipes users.permissions between tests, so any permission needed by a test must be seeded within that test's setup.
+Rationale: Consistent with the established pattern. Keeps test setup self-contained and independent of migration state.
+
+---

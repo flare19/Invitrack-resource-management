@@ -23,7 +23,7 @@ inventoryRouter.post('/categories', authenticate, requirePermission('inventory:w
 
 // ─── Locations ────────────────────────────────────────────────────────────────
 inventoryRouter.get('/locations', authenticate, listLocationsController);
-inventoryRouter.post('/locations', authenticate, requireRole('admin', 'manager'), createLocationController);
+inventoryRouter.post('/locations', authenticate, requirePermission('inventory:write'), createLocationController);
 
 // ─── Items ────────────────────────────────────────────────────────────────────
 inventoryRouter.get('/items', authenticate, listItemsController);
