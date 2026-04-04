@@ -11,6 +11,7 @@ import usersRouter from './modules/users/users.routes';
 import { configureOAuthStrategies } from './modules/auth/services';
 import inventoryRouter from './modules/inventory/inventory.routes';
 import bookingsRouter from './modules/bookings/bookings.routes';
+import auditRouter from './modules/audit/audit.routes';
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', usersRouter);
 app.use('/api/v1/inventory', inventoryRouter);
 app.use('/api/v1/bookings', bookingsRouter);
+app.use('/api/v1/audit', auditRouter);
 
 // 404
 app.use((_req: Request, _res: Response, next: NextFunction) => {

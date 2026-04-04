@@ -12,6 +12,7 @@ import { SignOptions, sign, verify } from 'jsonwebtoken';
 import { Strategy as GoogleStrategy, Profile as GoogleProfile } from 'passport-google-oauth20';
 import { Strategy as GithubStrategy, Profile as GithubProfile } from 'passport-github2';
 import jwt from 'jsonwebtoken';
+import { createAuditEvent } from '../audit/audit.service';
 
 function generateTokens(accountId: string, email: string): AuthTokensDTO {
   const accessToken = sign(
@@ -48,6 +49,15 @@ export async function registerService(data: RegisterDTO): Promise<RegisterRespon
   const expiresAt = new Date(Date.now() + env.SESSION_EXPIRES_IN);
 
   await createSession(account.id, refreshTokenHash, expiresAt);
+
+  createAuditEvent({
+    actorId: account.id,
+    actorEmail: account.email,
+    action: 'auth.account.registered',
+    module: 'auth',
+    targetType: 'account',
+    targetId: account.id,
+  }).catch((err) => console.error('[audit] Failed to write audit event:', err));
 
   return {
     id: account.id,
@@ -88,6 +98,18 @@ export async function loginService(data: LoginDTO, userAgent?: string, ipAddress
   const expiresAt = new Date(Date.now() + env.SESSION_EXPIRES_IN);
 
   await createSession(account.id, refreshTokenHash, expiresAt, userAgent, ipAddress);
+
+  // loginService — after createSession, before return tokens
+  createAuditEvent({
+    actorId: account.id,
+    actorEmail: account.email,
+    action: 'auth.account.login',
+    module: 'auth',
+    targetType: 'account',
+    targetId: account.id,
+    ...(ipAddress !== undefined && { ipAddress }),
+    ...(userAgent !== undefined && { userAgent }),
+  }).catch((err) => console.error('[audit] Failed to write audit event:', err));
 
   return tokens;
 }
@@ -134,6 +156,14 @@ export async function logoutService(rawToken: string): Promise<void> {
   }
 
   await deleteSession(session.id);
+
+  createAuditEvent({
+    actorId: session.accountId,
+    action: 'auth.account.logout',
+    module: 'auth',
+    targetType: 'account',
+    targetId: session.accountId,
+  }).catch((err) => console.error('[audit] Failed to write audit event:', err));
 }
 
 export async function verifyEmailService(rawToken: string): Promise<MessageResponseDTO> {
@@ -196,6 +226,14 @@ export async function resetPasswordService(
 
   await markPasswordResetTokenUsed(record.id);
   await updatePasswordHash(record.accountId, newPasswordHash);
+
+  createAuditEvent({
+    actorId: record.accountId,
+    action: 'auth.account.password_reset',
+    module: 'auth',
+    targetType: 'account',
+    targetId: record.accountId,
+  }).catch((err) => console.error('[audit] Failed to write audit event:', err));
 
   return { message: 'Password updated successfully.' };
 }
@@ -302,6 +340,18 @@ export async function handleOAuthCallbackService(
     { expiresIn: '15m' }
   );
 
+  // handleOAuthCallbackService — after createSession, before return
+  createAuditEvent({
+    actorId: account.id,
+    actorEmail: account.email,
+    action: 'auth.account.login',
+    module: 'auth',
+    targetType: 'account',
+    targetId: account.id,
+    ...(ipAddress !== undefined && { ipAddress }),
+    ...(userAgent !== undefined && { userAgent }),
+  }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+
   return { accessToken, refreshToken: rawRefreshToken };
 }
 
@@ -324,4 +374,12 @@ export async function deleteSessionService(
   }
 
   await deleteSession(session.id);
+
+  createAuditEvent({
+    actorId: requestingAccountId,
+    action: 'auth.session.revoked',
+    module: 'auth',
+    targetType: 'session',
+    targetId: sessionId,
+  }).catch((err) => console.error('[audit] Failed to write audit event:', err));
 }
