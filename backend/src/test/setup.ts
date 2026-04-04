@@ -33,6 +33,8 @@ beforeEach(async () => {
     inventory.categories,
     bookings.reservations,
     bookings.resources,
-    audit.events
+    audit.events,
+    analytics.daily_inventory_snapshots,
+    analytics.booking_metrics
     RESTART IDENTITY CASCADE`);
 });
