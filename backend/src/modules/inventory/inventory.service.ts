@@ -33,6 +33,7 @@ import {
   UpdateItemDTO,
 } from './inventory.types';
 
+import { createAuditEvent } from '../audit/audit.service';
 // ============================================================
 // Mappers
 // ============================================================
@@ -207,6 +208,16 @@ export async function addItem(
   }
 
   const item = await createItem(data, createdBy);
+
+  createAuditEvent({
+    actorId: createdBy,
+    action: 'inventory.item.created',
+    module: 'inventory',
+    targetType: 'item',
+    targetId: item.id,
+    payload: { sku: item.sku, name: item.name },
+  }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+
   return formatItem(item);
 }
 
@@ -229,6 +240,15 @@ export async function editItem(
 
   try {
     const updated = await updateItem(id, data);
+
+    createAuditEvent({
+      action: 'inventory.item.updated',
+      module: 'inventory',
+      targetType: 'item',
+      targetId: id,
+      payload: { ...data },
+    }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+
     return formatItem(updated);
   } catch (err: unknown) {
     // Prisma throws P2025 (RecordNotFound) when the version filter doesn't match
@@ -324,6 +344,21 @@ export async function recordTransaction(
 
   try {
     const transaction = await createTransactionWithStockUpdate(data, performedBy);
+
+    createAuditEvent({
+      actorId: performedBy,
+      action: 'inventory.transaction.created',
+      module: 'inventory',
+      targetType: 'transaction',
+      targetId: transaction.id,
+      payload: {
+        itemId: data.item_id,
+        locationId: data.location_id,
+        type: data.type,
+        quantityDelta: data.quantity_delta,
+      },
+    }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+
     return formatTransaction(transaction);
   } catch (err: unknown) {
     // Postgres CHECK constraint violation — stock would go negative

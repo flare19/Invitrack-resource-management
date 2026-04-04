@@ -24,6 +24,7 @@ import {
   ReviewReservationDTO,
 } from './bookings.types';
 
+import { createAuditEvent } from '../audit/audit.service';
 // ============================================================
 // Mappers
 // ============================================================
@@ -203,6 +204,20 @@ export async function createReservationService(
     });
   });
 
+  createAuditEvent({
+    actorId: accountId,
+    action: 'bookings.reservation.created',
+    module: 'bookings',
+    targetType: 'reservation',
+    targetId: reservation.id,
+    payload: {
+      resourceId: data.resource_id,
+      quantity: data.quantity,
+      startTime: data.start_time,
+      endTime: data.end_time,
+    },
+  }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+
   return formatReservation(reservation);
 }
 
@@ -318,6 +333,16 @@ export async function updateReservationService(
     ...(endTime !== undefined && { endTime }),
   });
 
+  if (data.status === 'cancelled') {
+    createAuditEvent({
+      actorId: accountId,
+      action: 'bookings.reservation.cancelled',
+      module: 'bookings',
+      targetType: 'reservation',
+      targetId: reservation.id,
+    }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+  }
+
   return formatReservation(updated);
 }
 
@@ -398,6 +423,16 @@ export async function reviewReservationService(
     reviewedAt: new Date(),
     ...(data.notes !== undefined && { notes: data.notes }),
   });
+
+  createAuditEvent({
+    actorId: reviewerId,
+    action: data.action === 'reject'
+      ? 'bookings.reservation.rejected'
+      : 'bookings.reservation.approved',
+    module: 'bookings',
+    targetType: 'reservation',
+    targetId: reservation.id,
+  }).catch((err) => console.error('[audit] Failed to write audit event:', err));
 
   return formatReservation(updated);
 }

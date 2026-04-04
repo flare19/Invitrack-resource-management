@@ -32,6 +32,7 @@ beforeEach(async () => {
     inventory.locations,
     inventory.categories,
     bookings.reservations,
-    bookings.resources
+    bookings.resources,
+    audit.events
     RESTART IDENTITY CASCADE`);
 });
