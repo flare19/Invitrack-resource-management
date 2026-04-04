@@ -645,3 +645,52 @@ Decision: bookings:approve is seeded dynamically inside integration test helpers
 Rationale: Consistent with the established pattern. Keeps test setup self-contained and independent of migration state.
 
 ---
+
+## ADR-027 — Audit Event Emission Strategy: Fire-and-Forget with Error Logging
+
+| Field  | Value      |
+|--------|------------|
+| Date   | 2026-04-04 |
+| Status | Decided    |
+
+### Decision
+
+Audit events are emitted as fire-and-forget side effects from service layer functions.
+`createAuditEvent` is called after the primary operation succeeds and is never awaited
+in a way that allows its failure to propagate to the caller. If the audit write fails,
+the error is logged to the console and silently swallowed — the primary operation's
+response is unaffected.
+
+### Rationale
+
+`audit.events` is a diagnostic and compliance log, not a transactional participant.
+Failing a booking creation or an inventory update because an append to the audit table
+failed would be the wrong trade-off — the user's operation succeeded and they should
+receive a success response regardless of what happens to the log. Treating audit writes
+as non-critical side effects is the standard pattern for append-only event logs at this
+scale.
+
+### Implementation
+
+`createAuditEvent` is a standalone async function exported from the audit service. Call
+sites in auth, users, inventory, and bookings services call it without `await` — or wrap
+it in a `.catch()` to ensure the promise rejection is handled and logged rather than
+silently dropped as an unhandled rejection:
+```ts
+createAuditEvent({ ... }).catch((err) =>
+  console.error('[audit] Failed to write audit event:', err)
+);
+```
+
+Using `.catch()` rather than a bare unawaited call is preferred — bare unawaited async
+calls in Node.js can surface as unhandled promise rejections depending on the runtime
+version and configuration.
+
+### Trade-offs Accepted
+
+A failed audit write produces no retry and no alerting beyond a console log. If audit
+completeness is critical in a future production context, the emit side should be moved
+to a message queue (e.g. SQS) with dead-letter handling. For a portfolio-scale system
+this is explicitly out of scope.
+
+---
