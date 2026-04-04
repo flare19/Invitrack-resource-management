@@ -12,6 +12,8 @@ import { configureOAuthStrategies } from './modules/auth/services';
 import inventoryRouter from './modules/inventory/inventory.routes';
 import bookingsRouter from './modules/bookings/bookings.routes';
 import auditRouter from './modules/audit/audit.routes';
+import analyticsRouter from './modules/analytics/analytics.routes';
+import { startAnalyticsJobs } from './modules/analytics/analytics.jobs';
 
 const app = express();
 
@@ -28,6 +30,8 @@ app.use('/api/v1/users', usersRouter);
 app.use('/api/v1/inventory', inventoryRouter);
 app.use('/api/v1/bookings', bookingsRouter);
 app.use('/api/v1/audit', auditRouter);
+app.use('/api/v1/analytics', analyticsRouter);
+startAnalyticsJobs();
 
 // 404
 app.use((_req: Request, _res: Response, next: NextFunction) => {

@@ -694,3 +694,30 @@ to a message queue (e.g. SQS) with dead-letter handling. For a portfolio-scale s
 this is explicitly out of scope.
 
 ---
+
+## ADR-028: Analytics Job Strategy and Implementation
+Date: 2026-04-04
+
+## Decision:
+We will implement an in-process job scheduling strategy using node-cron to handle periodic analytics aggregations. The scheduler will be housed within the analytics module and initialized during the application bootstrap phase.
+
+## Implementation Details:
+- Library: node-cron for lightweight, in-memory scheduling.
+- Location: src/modules/analytics/jobs.ts will act as the entry point, exporting a startAnalyticsJobs() function.
+Timing: Both jobs will run daily at 00:00 UTC (0 0 * * *).
+
+## Jobs:
+- Inventory Snapshot: Flattens current stock levels into analytics.daily_inventory_snapshots.
+- Booking Metrics: Aggregates reservation data (requests, approvals, utilization) into analytics.booking_metrics.
+
+## Reasoning:
+- Simplicity: Given the 2-month timeline and single-engineer setup, an in-process scheduler avoids the overhead of managing external workers (like BullMQ/Redis) or infrastructure-level cron jobs (like AWS EventBridge).
+- Consistency: Running at UTC midnight ensures a standard "data day" across all global regions, simplifying date-based reporting.
+- Modular Integrity: Placing the logic in src/modules/analytics/jobs.ts keeps the analytics domain logic self-contained, adhering to the - - Modular Monolith principles defined in ADR-001.
+- Developer Experience: Easier to debug and test within a single runtime environment compared to distributed task runners.
+
+## Tradeoffs:
+- Scalability: Since jobs run in-process, high-intensity aggregations could impact the API's responsiveness during the execution window.
+- Redundancy: If the application instance is down at midnight, the job will not run. We will need to implement "catch-up" logic or manual triggers in a future iteration if 100% uptime is critical.
+- Concurrency: If the application scales to multiple instances, the job will trigger on every instance.
+- Mitigation: For the MVP, we will rely on UPSERT logic in the database to ensure idempotency and prevent duplicate data rows.
