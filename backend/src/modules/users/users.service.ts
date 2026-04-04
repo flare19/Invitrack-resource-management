@@ -23,6 +23,8 @@ import { UpdateProfileDTO,
   AssignRoleResponseDTO,
   PaginatedResponseDTO, } from './types';
 
+import { createAuditEvent } from '../audit/audit.service';
+
 function formatProfileResponse(account: NonNullable<Awaited<ReturnType<typeof findAccountWithProfile>>>): UserProfileDTO {
   return {
     id: account.id,
@@ -133,6 +135,17 @@ export async function updateUserByIdService(
   if (dto.is_active !== undefined) updateData.isActive = dto.is_active;
 
   const updated = await updateUserById(accountId, updateData);
+
+  // updateUserByIdService — conditional, only on deactivation
+  if (dto.is_active === false) {
+    createAuditEvent({
+      action: 'users.account.deactivated',
+      module: 'users',
+      targetType: 'account',
+      targetId: accountId,
+    }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+  }
+
   return formatProfileResponse(updated!);
 }
 
@@ -168,6 +181,17 @@ export async function assignRoleService(
   }
 
   const assignment = await createAccountRole(accountId, roleId, grantedBy);
+
+  // assignRoleService — after the insert succeeds, before return
+  createAuditEvent({
+    actorId: grantedBy,
+    action: 'users.role.assigned',
+    module: 'users',
+    targetType: 'account_role',
+    targetId: accountId,
+    payload: { roleId },
+  }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+
   return {
     account_id: assignment.accountId,
     role_id: assignment.roleId,
@@ -193,6 +217,16 @@ export async function removeRoleService(
   }
 
   await deleteAccountRole(accountId, roleId);
+
+  // removeRoleService — after the delete succeeds
+  // you have accountId and roleId as parameters:
+  createAuditEvent({
+    action: 'users.role.removed',
+    module: 'users',
+    targetType: 'account_role',
+    targetId: accountId,
+    payload: { roleId },
+  }).catch((err) => console.error('[audit] Failed to write audit event:', err));
 }
 
 // src/modules/users/service.ts (additions)
