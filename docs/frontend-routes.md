@@ -30,6 +30,12 @@ page if the authenticated user lacks the required role.
 
 ---
 
+**OAuth success redirect:** The backend OAuth callback redirects to `/dashboard`
+on success. The refresh token HttpOnly cookie is set by the backend before the
+redirect. The existing `AuthContext` rehydration flow (call `POST /auth/refresh`
+on mount → call `GET /users/me` → hydrate roles and permissions) handles session
+restoration automatically. No dedicated `/oauth/callback` frontend route is needed.
+
 ## Public Routes
 
 ### `/login` — `LoginPage`
@@ -82,7 +88,10 @@ page if the authenticated user lacks the required role.
 **Purpose:** Confirm email ownership via a token sent in the verification email.
 
 **API calls:**
-- `GET /auth/verify-email?token=<token>`
+- `GET /auth/verify-email?token=<token>` — note: this endpoint is flagged for
+  change to `POST /auth/verify-email` with `{ token }` in the request body
+  before v1.0.0 (security — token exposed in URL, server logs, and browser
+  history). Frontend implementation must be updated when the backend fix lands.
 
 **Behaviour:**
 - On mount: read `token` from URL query params, call the API immediately

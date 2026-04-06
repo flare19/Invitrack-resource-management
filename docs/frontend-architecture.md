@@ -85,8 +85,10 @@ redirected to `/login`.
 1. `POST /auth/login` → receive `access_token`
 2. Store `access_token` in `AuthContext`
 3. Call `GET /users/me` → receive full profile including roles
-4. Extract role names and permission codes, store in `AuthContext`
-5. Redirect to `/dashboard`
+4. For each role in the response, call `GET /users/roles/:role_id/permissions`
+   and flatten results into a single array of permission code strings
+5. Store access token, user profile, roles, and permissions in `AuthContext`
+6. Redirect to `/dashboard`
 
 ### Auth context shape
 
