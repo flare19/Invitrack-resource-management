@@ -34,14 +34,26 @@ export type PaginatedResponse<T> = {
   }
 }
 
-// Update own profile
+export type User = {
+  id: string
+  email: string
+  is_verified: boolean
+  is_active: boolean
+  full_name: string
+  display_name: string | null
+  avatar_url: string | null
+  department: string | null
+  roles: Role[]
+  created_at: string
+  updated_at: string
+}
+
 export type UpdateMyProfileBody = {
   full_name?: string
   display_name?: string
   department?: string
 }
 
-// Update user (admin only) — includes is_active toggle
 export type UpdateUserByAdminBody = {
   full_name?: string
   display_name?: string
@@ -49,7 +61,6 @@ export type UpdateUserByAdminBody = {
   is_active?: boolean
 }
 
-// Query parameters for listing users
 export type GetUsersParams = {
   page?: number
   per_page?: number

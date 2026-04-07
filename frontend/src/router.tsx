@@ -17,11 +17,14 @@ import DashboardPage from '@/pages/dashboard/DashboardPage'
 import InventoryListPage from '@/pages/inventory/InventoryListPage'
 import InventoryItemPage from '@/pages/inventory/InventoryItemPage'
 
+// Users
+import MyProfilePage from '@/pages/users/myProfilePage'
+import { UsersListPage } from '@/pages/users/usersListPage'
+import UserDetailPage from '@/pages/users/UserDetailPage'
+
 // Placeholders — replaced when modules are implemented
 const BookingsListPage = () => <div>Bookings</div>
 const BookingDetailPage = () => <div>Booking Detail</div>
-const UsersListPage = () => <div>Users</div>
-const UserDetailPage = () => <div>User Detail</div>
 const AuditPage = () => <div>Audit</div>
 const AnalyticsPage = () => <div>Analytics</div>
 
@@ -63,6 +66,7 @@ export const router = createBrowserRouter([
           { path: '/inventory/:id', element: <InventoryItemPage /> },
           { path: '/bookings', element: <BookingsListPage /> },
           { path: '/bookings/:id', element: <BookingDetailPage /> },
+          { path: '/profile', element: <MyProfilePage /> },
         ],
       },
     ],
