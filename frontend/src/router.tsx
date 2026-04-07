@@ -13,9 +13,11 @@ import ResetPasswordPage from '@/pages/auth/ResetPasswordPage'
 // Dashboard
 import DashboardPage from '@/pages/dashboard/DashboardPage'
 
+// Inventory
+import InventoryListPage from '@/pages/inventory/InventoryListPage'
+import InventoryItemPage from '@/pages/inventory/InventoryItemPage'
+
 // Placeholders — replaced when modules are implemented
-const InventoryListPage = () => <div>Inventory</div>
-const InventoryItemPage = () => <div>Inventory Item</div>
 const BookingsListPage = () => <div>Bookings</div>
 const BookingDetailPage = () => <div>Booking Detail</div>
 const UsersListPage = () => <div>Users</div>
