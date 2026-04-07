@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useAuth } from '@/context/AuthContext'
+import { setAccessToken } from '@/api/axios'
 import { login as apiLogin } from '@/api/auth'
 import { getMe, getRolePermissions } from '@/api/users'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
@@ -53,6 +54,7 @@ export default function LoginPage() {
   async function onSubmit(data: FormData) {
     try {
       const { access_token } = await apiLogin(data.email, data.password)
+      setAccessToken(access_token)
       const user = await getMe()
       const results = await Promise.all(
         user.roles.map((role) => getRolePermissions(role.id))
