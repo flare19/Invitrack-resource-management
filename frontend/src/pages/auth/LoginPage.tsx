@@ -25,7 +25,7 @@ function getErrorMessage(status: number, data: unknown): string {
       typeof (data as { error: { message?: string } }).error.message === 'string'
         ? (data as { error: { message: string } }).error.message.toLowerCase()
         : ''
-    if (message.includes('verified')) return 'Please verify your email before logging in'
+    if (message.includes('verify')) return 'Please verify your email before logging in'
     return 'Your account has been deactivated'
   }
   return 'Something went wrong. Please try again.'
@@ -102,30 +102,32 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-sm font-medium">Email</label>
-            <input
-              {...register('email')}
-              type="email"
-              autoComplete="email"
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-            />
-            {errors.email && (
-              <p className="text-xs text-destructive">{errors.email.message}</p>
-            )}
-          </div>
+  <label htmlFor="email" className="text-sm font-medium">Email</label>
+  <input
+    id="email"
+    {...register('email')}
+    type="email"
+    autoComplete="email"
+    className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+  />
+  {errors.email && (
+    <p className="text-xs text-destructive">{errors.email.message}</p>
+  )}
+</div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Password</label>
-            <input
-              {...register('password')}
-              type="password"
-              autoComplete="current-password"
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-            />
-            {errors.password && (
-              <p className="text-xs text-destructive">{errors.password.message}</p>
-            )}
-          </div>
+<div className="space-y-1">
+  <label htmlFor="password" className="text-sm font-medium">Password</label>
+  <input
+    id="password"
+    {...register('password')}
+    type="password"
+    autoComplete="current-password"
+    className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+  />
+  {errors.password && (
+    <p className="text-xs text-destructive">{errors.password.message}</p>
+  )}
+</div>
 
           <div className="text-right">
             <Link
