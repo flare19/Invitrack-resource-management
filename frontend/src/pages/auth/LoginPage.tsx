@@ -56,10 +56,18 @@ export default function LoginPage() {
       const { access_token } = await apiLogin(data.email, data.password)
       setAccessToken(access_token)
       const user = await getMe()
-      const results = await Promise.all(
-        user.roles.map((role) => getRolePermissions(role.id))
-      )
-      const permissions = [...new Set(results.flat().map((p) => p.code))]
+
+      let permissions: string[] = []
+      try {
+        const results = await Promise.all(
+          user.roles.map((role) => getRolePermissions(role.id))
+        )
+        permissions = [...new Set(results.flat().map((p) => p.code))]
+      } catch {
+        // Non-admin users may not have access to role permissions endpoint
+        // Proceed with empty permissions array
+      }
+
       login(access_token, user, permissions)
       void navigate('/dashboard', { replace: true })
     } catch (err: unknown) {
