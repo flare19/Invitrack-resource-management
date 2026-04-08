@@ -18,6 +18,15 @@ export type StockLevel = {
   quantity: number
 }
 
+export type StockLevelDetail = {
+  id: string
+  item_id: string
+  location_id: string
+  location_name: string
+  quantity: number
+  updated_at: string
+}
+
 export type InventoryItem = {
   id: string
   sku: string

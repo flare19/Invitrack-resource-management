@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useCreateItem, useCategories } from '@/hooks/useInventory'
+import { useCreateItem, useCategories, useLocations, useCreateTransaction } from '@/hooks/useInventory'
 import type { CreateItemBody } from '@/api/inventory'
 
 const createItemSchema = z.object({
@@ -26,9 +26,11 @@ const createItemSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   unit: z.string().min(1, 'Unit is required'),
   description: z.string().optional(),
-  category_id: z.string().optional(),
+  category_id: z.string().min(1, 'Category is required'),
   reorder_threshold: z.coerce.number().int().min(0),
   is_bookable: z.boolean(),
+  location_id: z.string().optional(),
+  initial_quantity: z.coerce.number().int().min(0).optional(),
 })
 
 type CreateItemFormValues = z.infer<typeof createItemSchema>
@@ -40,7 +42,9 @@ type CreateItemModalProps = {
 
 export function CreateItemModal({ open, onOpenChange }: CreateItemModalProps) {
   const { data: categories } = useCategories()
+  const { data: locations } = useLocations()
   const createItem = useCreateItem()
+  const createTransaction = useCreateTransaction()
 
   const {
     register,
@@ -56,9 +60,11 @@ export function CreateItemModal({ open, onOpenChange }: CreateItemModalProps) {
       name: '',
       unit: '',
       description: '',
-      category_id: 'none',
+      category_id: '',
       reorder_threshold: 0,
       is_bookable: false,
+      location_id: '',
+      initial_quantity: 0,
     },
   })
 
@@ -72,10 +78,8 @@ export function CreateItemModal({ open, onOpenChange }: CreateItemModalProps) {
       sku: values.sku,
       name: values.name,
       unit: values.unit,
+      category_id: values.category_id,
       ...(values.description && { description: values.description }),
-      ...(values.category_id && values.category_id !== 'none' && {
-        category_id: values.category_id,
-      }),
       ...(values.reorder_threshold !== undefined && {
         reorder_threshold: values.reorder_threshold,
       }),
@@ -85,7 +89,19 @@ export function CreateItemModal({ open, onOpenChange }: CreateItemModalProps) {
     }
 
     try {
-      await createItem.mutateAsync(body)
+      const createdItem = await createItem.mutateAsync(body)
+
+      // If location and quantity provided, create a transaction
+      if (values.location_id && values.initial_quantity && values.initial_quantity > 0) {
+        await createTransaction.mutateAsync({
+          item_id: createdItem.id,
+          location_id: values.location_id,
+          type: 'in',
+          quantity_delta: values.initial_quantity,
+          notes: 'Initial stock',
+        })
+      }
+
       reset()
       onOpenChange(false)
     } catch {
@@ -94,15 +110,20 @@ export function CreateItemModal({ open, onOpenChange }: CreateItemModalProps) {
   }
 
   const categoryValue = watch('category_id')
+  const locationValue = watch('location_id')
   const isBookable = watch('is_bookable')
 
   function getErrorMessage(): string | null {
-    if (!createItem.error) return null
-    const err = createItem.error as {
+    if (!createItem.error && !createTransaction.error) return null
+
+    const err = createItem.error || createTransaction.error
+    if (!err) return null
+
+    const error = err as {
       response?: { status: number; data?: { error?: { message?: string } } }
     }
-    if (err.response?.status === 409) return 'An item with this SKU already exists.'
-    if (err.response?.status === 422) return 'Please check the form for invalid values.'
+    if (error.response?.status === 409) return 'An item with this SKU already exists.'
+    if (error.response?.status === 422) return 'Please check the form for invalid values.'
     return 'Something went wrong. Please try again.'
   }
 
@@ -146,16 +167,15 @@ export function CreateItemModal({ open, onOpenChange }: CreateItemModalProps) {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="category_id">Category</Label>
+            <Label htmlFor="category_id">Category *</Label>
             <Select
-              value={categoryValue ?? 'none'}
+              value={categoryValue ?? ''}
               onValueChange={(val) => setValue('category_id', val)}
             >
               <SelectTrigger id="category_id">
-                <SelectValue placeholder="None" />
+                <SelectValue placeholder="Select a category" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">None</SelectItem>
                 {categories?.map((cat) => (
                   <SelectItem key={cat.id} value={cat.id}>
                     {cat.name}
@@ -163,6 +183,11 @@ export function CreateItemModal({ open, onOpenChange }: CreateItemModalProps) {
                 ))}
               </SelectContent>
             </Select>
+            {errors.category_id && (
+              <p className="text-sm text-destructive">
+                {errors.category_id.message}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -174,9 +199,7 @@ export function CreateItemModal({ open, onOpenChange }: CreateItemModalProps) {
               {...register('reorder_threshold')}
             />
             {errors.reorder_threshold && (
-              <p className="text-sm text-destructive">
-                {errors.reorder_threshold.message}
-              </p>
+              <p className="text-sm text-destructive">{errors.reorder_threshold.message}</p>
             )}
           </div>
 
@@ -191,6 +214,46 @@ export function CreateItemModal({ open, onOpenChange }: CreateItemModalProps) {
             <Label htmlFor="is_bookable">Bookable</Label>
           </div>
 
+          {/* Initial Stock Section */}
+          <div className="border-t pt-4 mt-2">
+            <h3 className="font-semibold text-sm mb-3">Initial Stock (Optional)</h3>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="location_id">Location</Label>
+              <Select
+                value={locationValue ?? ''}
+                onValueChange={(val) => setValue('location_id', val)}
+              >
+                <SelectTrigger id="location_id">
+                  <SelectValue placeholder="Select a location (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {locations?.map((loc) => (
+                    <SelectItem key={loc.id} value={loc.id}>
+                      {loc.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {locationValue && (
+              <div className="flex flex-col gap-1.5 mt-3">
+                <Label htmlFor="initial_quantity">Quantity</Label>
+                <Input
+                  id="initial_quantity"
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  {...register('initial_quantity')}
+                />
+                {errors.initial_quantity && (
+                  <p className="text-sm text-destructive">{errors.initial_quantity.message}</p>
+                )}
+              </div>
+            )}
+          </div>
+
           {serverError && (
             <p className="text-sm text-destructive">{serverError}</p>
           )}
@@ -203,7 +266,7 @@ export function CreateItemModal({ open, onOpenChange }: CreateItemModalProps) {
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || createItem.isPending}>
+            <Button type="submit" disabled={isSubmitting || createItem.isPending || createTransaction.isPending}>
               Create Item
             </Button>
           </div>

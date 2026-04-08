@@ -7,16 +7,19 @@ import {
 import {
   createCategory,
   createItem,
+  createLocation,
   createTransaction,
   deleteItem,
   getCategories,
   getItemById,
   getItems,
   getLocations,
+  getStockLevels,
   getTransactions,
   updateItem,
   type CreateCategoryBody,
   type CreateItemBody,
+  type CreateLocationBody,
   type CreateTransactionBody,
   type GetItemsParams,
   type GetTransactionsParams,
@@ -28,6 +31,7 @@ import type {
   InventoryItem,
   InventoryItemDetail,
   Location,
+  StockLevelDetail,
   Transaction,
 } from '@/types/inventory'
 
@@ -37,6 +41,8 @@ export const inventoryKeys = {
   all: ['inventory'] as const,
   items: () => [...inventoryKeys.all, 'items'] as const,
   item: (id: string) => [...inventoryKeys.all, 'items', id] as const,
+  stockLevels: (itemId: string) =>
+    [...inventoryKeys.all, 'stockLevels', itemId] as const,
   categories: () => [...inventoryKeys.all, 'categories'] as const,
   locations: () => [...inventoryKeys.all, 'locations'] as const,
   transactions: () => [...inventoryKeys.all, 'transactions'] as const,
@@ -110,6 +116,19 @@ export function useDeleteItem() {
   })
 }
 
+// --- Stock Levels ---
+
+export function useStockLevels(
+  itemId: string,
+  options?: Omit<UseQueryOptions<StockLevelDetail[]>, 'queryKey' | 'queryFn'>
+) {
+  return useQuery({
+    queryKey: inventoryKeys.stockLevels(itemId),
+    queryFn: () => getStockLevels(itemId),
+    ...options,
+  })
+}
+
 // --- Categories ---
 
 export function useCategories(
@@ -142,6 +161,17 @@ export function useLocations(
     queryKey: inventoryKeys.locations(),
     queryFn: getLocations,
     ...options,
+  })
+}
+
+export function useCreateLocation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (body: CreateLocationBody) => createLocation(body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.locations() })
+    },
   })
 }
 

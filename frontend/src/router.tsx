@@ -16,6 +16,9 @@ import DashboardPage from '@/pages/dashboard/DashboardPage'
 // Inventory
 import InventoryListPage from '@/pages/inventory/InventoryListPage'
 import InventoryItemPage from '@/pages/inventory/InventoryItemPage'
+import CategoriesPage from '@/pages/inventory/CategoriesPage'
+import LocationsPage from '@/pages/inventory/LocationsPage'
+import TransactionsPage from '@/pages/inventory/TransactionsPage'
 
 // Placeholders — replaced when modules are implemented
 const BookingsListPage = () => <div>Bookings</div>
@@ -60,6 +63,9 @@ export const router = createBrowserRouter([
         children: [
           { path: '/dashboard', element: <DashboardPage /> },
           { path: '/inventory', element: <InventoryListPage /> },
+          { path: '/inventory/categories', element: <CategoriesPage /> },
+          { path: '/inventory/locations', element: <LocationsPage /> },
+          { path: '/inventory/transactions', element: <TransactionsPage /> },
           { path: '/inventory/:id', element: <InventoryItemPage /> },
           { path: '/bookings', element: <BookingsListPage /> },
           { path: '/bookings/:id', element: <BookingDetailPage /> },

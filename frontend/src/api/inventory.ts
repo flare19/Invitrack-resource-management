@@ -5,6 +5,7 @@ import type {
   InventoryItem,
   InventoryItemDetail,
   Location,
+  StockLevelDetail,
   Transaction,
 } from '@/types/inventory'
 
@@ -51,6 +52,11 @@ export async function getItemById(id: string): Promise<InventoryItemDetail> {
   return response.data
 }
 
+export async function getStockLevels(itemId: string): Promise<StockLevelDetail[]> {
+  const response = await api.get(`/inventory/items/${itemId}/stock`)
+  return response.data
+}
+
 export async function createItem(body: CreateItemBody): Promise<InventoryItem> {
   const response = await api.post('/inventory/items', body)
   return response.data
@@ -89,8 +95,21 @@ export async function createCategory(
 
 // --- Locations ---
 
+export type CreateLocationBody = {
+  name: string
+  description?: string
+  parent_id?: string
+}
+
 export async function getLocations(): Promise<Location[]> {
   const response = await api.get('/inventory/locations')
+  return response.data
+}
+
+export async function createLocation(
+  body: CreateLocationBody
+): Promise<Location> {
+  const response = await api.post('/inventory/locations', body)
   return response.data
 }
 
