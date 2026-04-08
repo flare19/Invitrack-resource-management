@@ -1,7 +1,7 @@
-import type { StockLevel } from '@/types/inventory'
+import type { StockLevel, StockLevelDetail } from '@/types/inventory'
 
 type StockLevelTableProps = {
-  stockLevels: StockLevel[]
+  stockLevels: StockLevel[] | StockLevelDetail[]
 }
 
 export function StockLevelTable({ stockLevels }: StockLevelTableProps) {

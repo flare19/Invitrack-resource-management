@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
-import { useItem, useDeleteItem } from '@/hooks/useInventory'
+import { useItem, useDeleteItem, useStockLevels } from '@/hooks/useInventory'
 import { EditItemForm } from './EditItemForm'
 import { StockLevelTable } from './StockLevelTable'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
@@ -19,6 +19,9 @@ export default function InventoryItemPage() {
   const canEdit = permissions.includes('inventory:write')
 
   const { data: item, isLoading, error } = useItem(id!)
+  const { data: stockLevels, isLoading: isLoadingStock } = useStockLevels(id!, {
+    enabled: !!id,
+  })
 
   const deleteItem = useDeleteItem()
 
@@ -158,7 +161,13 @@ export default function InventoryItemPage() {
 
           <div>
             <h3 className="font-semibold mb-3">Stock Levels</h3>
-            <StockLevelTable stockLevels={item.stock_levels} />
+            {isLoadingStock ? (
+              <LoadingSpinner />
+            ) : stockLevels ? (
+              <StockLevelTable stockLevels={stockLevels} />
+            ) : (
+              <p className="text-muted-foreground text-sm">No stock levels found</p>
+            )}
           </div>
         </div>
       )}
