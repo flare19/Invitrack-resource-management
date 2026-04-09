@@ -33,8 +33,10 @@ import ResourceDetailPage from '@/pages/bookings/ResourceDetailPage'
 // Settings
 import RolesManagementPage from '@/pages/settings/RolesManagementPage'
 
+// Audit
+import AuditPage from '@/pages/audit/AuditPage'
+
 // Placeholders — replaced when modules are implemented
-const AuditPage = () => <div>Audit</div>
 const AnalyticsPage = () => <div>Analytics</div>
 
 export const router = createBrowserRouter([
