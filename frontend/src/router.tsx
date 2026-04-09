@@ -36,8 +36,8 @@ import RolesManagementPage from '@/pages/settings/RolesManagementPage'
 // Audit
 import AuditPage from '@/pages/audit/AuditPage'
 
-// Placeholders — replaced when modules are implemented
-const AnalyticsPage = () => <div>Analytics</div>
+//Analytics
+import AnalyticsPage from '@/pages/analytics/AnalyticsPage'
 
 export const router = createBrowserRouter([
   {
