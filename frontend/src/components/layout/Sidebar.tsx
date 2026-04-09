@@ -7,6 +7,7 @@ import {
   Users,
   ScrollText,
   BarChart2,
+  Settings,
 } from 'lucide-react'
 
 type NavItem = {
@@ -30,11 +31,14 @@ export default function Sidebar() {
     ...(isAdminOrManager
       ? [{ to: '/users', label: 'Users', icon: <Users className="h-4 w-4" /> }]
       : []),
+    ...(isAdminOrManager
+      ? [{ to: '/analytics', label: 'Analytics', icon: <BarChart2 className="h-4 w-4" /> }]
+      : []),
     ...(isAdmin
       ? [{ to: '/audit', label: 'Audit', icon: <ScrollText className="h-4 w-4" /> }]
       : []),
-    ...(isAdminOrManager
-      ? [{ to: '/analytics', label: 'Analytics', icon: <BarChart2 className="h-4 w-4" /> }]
+    ...(isAdmin
+      ? [{ to: '/settings/roles', label: 'Settings', icon: <Settings className="h-4 w-4" /> }]
       : []),
   ]
 

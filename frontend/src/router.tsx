@@ -22,6 +22,9 @@ import MyProfilePage from '@/pages/users/myProfilePage'
 import { UsersListPage } from '@/pages/users/usersListPage'
 import UserDetailPage from '@/pages/users/UserDetailPage'
 
+// Settings
+import RolesManagementPage from '@/pages/settings/RolesManagementPage'
+
 // Placeholders — replaced when modules are implemented
 const BookingsListPage = () => <div>Bookings</div>
 const BookingDetailPage = () => <div>Booking Detail</div>
@@ -92,6 +95,7 @@ export const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           { path: '/audit', element: <AuditPage /> },
+          { path: '/settings/roles', element: <RolesManagementPage /> },
         ],
       },
     ],
