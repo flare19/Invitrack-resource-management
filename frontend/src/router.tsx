@@ -25,9 +25,13 @@ import MyProfilePage from '@/pages/users/myProfilePage'
 import { UsersListPage } from '@/pages/users/usersListPage'
 import UserDetailPage from '@/pages/users/UserDetailPage'
 
+// Bookings
+import ReservationsListPage from '@/pages/bookings/ReservationsListPage'
+import ReservationDetailPage from '@/pages/bookings/ReservationDetailPage'
+import ResourcesListPage from '@/pages/bookings/ResourcesListPage'
+import ResourceDetailPage from '@/pages/bookings/ResourceDetailPage'
+
 // Placeholders — replaced when modules are implemented
-const BookingsListPage = () => <div>Bookings</div>
-const BookingDetailPage = () => <div>Booking Detail</div>
 const AuditPage = () => <div>Audit</div>
 const AnalyticsPage = () => <div>Analytics</div>
 
@@ -70,8 +74,10 @@ export const router = createBrowserRouter([
           { path: '/inventory/locations', element: <LocationsPage /> },
           { path: '/inventory/transactions', element: <TransactionsPage /> },
           { path: '/inventory/:id', element: <InventoryItemPage /> },
-          { path: '/bookings', element: <BookingsListPage /> },
-          { path: '/bookings/:id', element: <BookingDetailPage /> },
+          { path: '/bookings', element: <ReservationsListPage /> },
+          { path: '/bookings/:id', element: <ReservationDetailPage /> },
+          { path: '/bookings/resources', element: <ResourcesListPage /> },
+          { path: '/bookings/resources/:id', element: <ResourceDetailPage /> },
           { path: '/profile', element: <MyProfilePage /> },
         ],
       },

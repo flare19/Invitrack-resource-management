@@ -19,7 +19,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useCreateItem, useCategories, useLocations, useCreateTransaction } from '@/hooks/useInventory'
+import { useCreateResource } from '@/hooks/useBookings'
 import type { CreateItemBody } from '@/api/inventory'
+import type { CreateResourceBody } from '@/api/bookings'
 
 const createItemSchema = z.object({
   sku: z.string().min(1, 'SKU is required'),
@@ -45,6 +47,7 @@ export function CreateItemModal({ open, onOpenChange }: CreateItemModalProps) {
   const { data: locations } = useLocations()
   const createItem = useCreateItem()
   const createTransaction = useCreateTransaction()
+  const createResource = useCreateResource()
 
   const {
     register,
@@ -100,6 +103,16 @@ export function CreateItemModal({ open, onOpenChange }: CreateItemModalProps) {
           quantity_delta: values.initial_quantity,
           notes: 'Initial stock',
         })
+      }
+
+      // If bookable, create a resource
+      if (values.is_bookable) {
+        const resourceBody: CreateResourceBody = {
+          item_id: createdItem.id,
+          name: createdItem.name,
+          quantity: values.initial_quantity && values.initial_quantity > 0 ? values.initial_quantity : 1,
+        }
+        await createResource.mutateAsync(resourceBody)
       }
 
       reset()

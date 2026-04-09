@@ -19,7 +19,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useUpdateItem, useCategories } from '@/hooks/useInventory'
+import { useCreateResource } from '@/hooks/useBookings'
 import type { UpdateItemBody } from '@/api/inventory'
+import type { CreateResourceBody } from '@/api/bookings'
 
 const editItemSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -56,6 +58,8 @@ export function EditItemForm({
 }: EditItemFormProps) {
   const { data: categories } = useCategories()
   const updateItem = useUpdateItem(itemId)
+  const createResource = useCreateResource()
+  const wasBookableBefore = item.is_bookable
 
   const {
     register,
@@ -99,7 +103,18 @@ export function EditItemForm({
     }
 
     try {
-      await updateItem.mutateAsync(body)
+      const updatedItem = await updateItem.mutateAsync(body)
+
+      // If is_bookable changed from false to true, create a resource
+      if (!wasBookableBefore && values.is_bookable) {
+        const resourceBody: CreateResourceBody = {
+          item_id: itemId,
+          name: updatedItem.name,
+          quantity: 1,
+        }
+        await createResource.mutateAsync(resourceBody)
+      }
+
       reset()
       onOpenChange(false)
     } catch {

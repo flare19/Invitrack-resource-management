@@ -3,18 +3,21 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { useReservation, useCancelReservation } from '@/hooks/useBookings'
 import { ReviewActions } from '@/components/bookings/ReviewActions'
+import { EditReservationModal } from '@/components/bookings/EditReservationModal'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
 import PageError from '@/components/shared/PageError'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Trash2 } from 'lucide-react'
+import { ArrowLeft, Edit2, Trash2 } from 'lucide-react'
 
 export default function ReservationDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { permissions } = useAuth()
+  const { permissions, user } = useAuth()
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isReviewOpen, setIsReviewOpen] = useState(false)
 
   const canApprove = permissions.includes('bookings:approve')
+  const canEdit = permissions.includes('bookings:write') || user?.id
   const canCancel = true // users can cancel their own, admins any
 
   const { data: reservation, isLoading, error } = useReservation(id!)
@@ -85,6 +88,17 @@ export default function ReservationDetailPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          {canEdit && reservation.status === 'pending' && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setIsEditModalOpen(true)}
+              className="gap-2"
+            >
+              <Edit2 className="h-4 w-4" />
+              Edit
+            </Button>
+          )}
           {canApprove && reservation.status === 'pending' && (
             <ReviewActions
               reservationId={reservation.id}
@@ -177,6 +191,13 @@ export default function ReservationDetailPage() {
           </dl>
         </div>
       </div>
+
+      <EditReservationModal
+        open={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
+        reservationId={reservation.id}
+        reservation={reservation}
+      />
     </div>
   )
 }

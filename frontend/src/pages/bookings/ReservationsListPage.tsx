@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
-import { useReservations } from '@/hooks/useBookings'
+import { useReservations, useResources } from '@/hooks/useBookings'
 import { CreateReservationModal } from '@/components/bookings/CreateReservationModal'
 import { ReservationFilters } from '@/components/bookings/ReservationFilters'
 import { ReservationCard } from '@/components/bookings/ReservationCard'
+import { ReviewActions } from '@/components/bookings/ReviewActions'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
 import PageError from '@/components/shared/PageError'
 import { Button } from '@/components/ui/button'
@@ -13,6 +14,7 @@ import type { GetReservationsParams } from '@/api/bookings'
 export default function ReservationsListPage() {
   const { permissions, roles } = useAuth()
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [reviewReservationId, setReviewReservationId] = useState<string | null>(null)
   const [filters, setFilters] = useState<GetReservationsParams>({
     page: 1,
     per_page: 20,
@@ -22,6 +24,12 @@ export default function ReservationsListPage() {
   const canApprove = permissions.includes('bookings:approve')
 
   const { data, isLoading, error } = useReservations(filters)
+  const { data: resourcesData } = useResources({ per_page: 100 })
+
+  // Build resource name lookup map
+  const resourceNameMap = new Map(
+    (resourcesData?.data ?? []).map((resource) => [resource.id, resource.name])
+  )
 
   if (isLoading) return <LoadingSpinner />
 
@@ -69,11 +77,27 @@ export default function ReservationsListPage() {
           </div>
         ) : (
           reservations.map((reservation) => (
-            <ReservationCard
-              key={reservation.id}
-              reservation={reservation}
-              showActions={false}
-            />
+            <div key={reservation.id} className="flex items-center justify-between gap-2">
+              <div className="flex-1">
+                <ReservationCard
+                  reservation={reservation}
+                  resourceName={resourceNameMap.get(reservation.resource_id) ?? 'Unknown Resource'}
+                  showActions={true}
+                />
+              </div>
+              {canApprove && reservation.status === 'pending' && (
+                <div className="flex-shrink-0 pr-4">
+                  <ReviewActions
+                    reservationId={reservation.id}
+                    onSuccess={() => {
+                      setReviewReservationId(null)
+                      window.location.reload()
+                    }}
+                    compact={true}
+                  />
+                </div>
+              )}
+            </div>
           ))
         )}
       </div>

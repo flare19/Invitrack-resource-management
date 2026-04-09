@@ -10,83 +10,66 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  useCreateReservation,
-  useResources,
-  useAvailability,
-} from '@/hooks/useBookings'
+import { useUpdateReservation, useAvailability } from '@/hooks/useBookings'
 import { AvailabilityBadge } from './AvailabilityBadge'
-import type { CreateReservationBody } from '@/api/bookings'
+import type { UpdateReservationBody } from '@/api/bookings'
+import type { Reservation } from '@/types/bookings'
 
-const createReservationSchema = z.object({
-  resource_id: z.string().min(1, 'Resource is required'),
-  quantity: z
-    .union([z.number(), z.string()])
-    .transform((v) => (typeof v === 'string' ? parseInt(v, 10) : v))
-    .refine((v) => v >= 1, 'Quantity must be at least 1'),
-  start_time: z.string().min(1, 'Start time is required'),
-  end_time: z.string().min(1, 'End time is required'),
-  notes: z.string().max(500).default(''),
-}).refine(
-  (data) => {
-    if (!data.start_time || !data.end_time) return true
-    const start = new Date(data.start_time)
-    const end = new Date(data.end_time)
-    return end > start
-  },
-  {
+const editReservationSchema = z
+  .object({
+    quantity: z
+      .union([z.number(), z.string()])
+      .transform((v) => (typeof v === 'string' ? parseInt(v, 10) : v))
+      .refine((v) => v >= 1, 'Quantity must be at least 1'),
+    start_time: z.string().min(1, 'Start time is required'),
+    end_time: z.string().min(1, 'End time is required'),
+    notes: z.string().max(500).default(''),
+  })
+  .refine((data) => new Date(data.end_time) > new Date(data.start_time), {
     message: 'End time must be after start time',
     path: ['end_time'],
-  }
-)
+  })
 
-type CreateReservationFormValues = z.infer<typeof createReservationSchema>
+type EditReservationFormValues = z.infer<typeof editReservationSchema>
 
-type CreateReservationModalProps = {
+type EditReservationModalProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
+  reservationId: string
+  reservation: Reservation
 }
 
-export function CreateReservationModal({
+export function EditReservationModal({
   open,
   onOpenChange,
-}: CreateReservationModalProps) {
-  const { data: resourcesData, isLoading: isLoadingResources } = useResources({ per_page: 100 })
-  const createReservation = useCreateReservation()
+  reservationId,
+  reservation,
+}: EditReservationModalProps) {
+  const updateReservation = useUpdateReservation(reservationId)
 
   const {
     register,
     handleSubmit,
     watch,
     reset,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm({
-    resolver: zodResolver(createReservationSchema),
+    resolver: zodResolver(editReservationSchema),
     defaultValues: {
-      resource_id: '',
-      quantity: 1,
-      start_time: '',
-      end_time: '',
-      notes: '',
+      quantity: reservation.quantity,
+      start_time: reservation.start_time.slice(0, 16), // ISO format for datetime-local
+      end_time: reservation.end_time.slice(0, 16),
+      notes: reservation.notes ?? '',
     },
   })
 
-  const resourceId = watch('resource_id')
   const quantity = watch('quantity') as number
   const startTime = watch('start_time')
   const endTime = watch('end_time')
 
-  // Fetch availability when all required fields are set
+  // Check availability for new time window
   const { data: availability, isLoading: isCheckingAvailability } = useAvailability(
-    resourceId || undefined,
+    reservation.resource_id,
     startTime || undefined,
     endTime || undefined
   )
@@ -96,27 +79,15 @@ export function CreateReservationModal({
     onOpenChange(next)
   }
 
-  function handleResourceChange(value: string) {
-    setValue('resource_id', value)
-  }
-
   async function onSubmit(data: unknown): Promise<void> {
-    const values = data as CreateReservationFormValues
-
-    // Validate end_time > start_time
-    const start = new Date(values.start_time)
-    const end = new Date(values.end_time)
-    if (end <= start) {
-      return // Form validation should catch this, but double-check
-    }
+    const values = data as EditReservationFormValues
 
     // Check availability
     if (availability && values.quantity > availability.available_quantity) {
-      return // UI should prevent submit, but guard here
+      return // UI should prevent submit
     }
 
-    const body: CreateReservationBody = {
-      resource_id: values.resource_id,
+    const body: UpdateReservationBody = {
       quantity: values.quantity,
       start_time: values.start_time,
       end_time: values.end_time,
@@ -124,7 +95,7 @@ export function CreateReservationModal({
     }
 
     try {
-      await createReservation.mutateAsync(body)
+      await updateReservation.mutateAsync(body)
       reset()
       onOpenChange(false)
     } catch {
@@ -133,71 +104,35 @@ export function CreateReservationModal({
   }
 
   function getErrorMessage(): string | null {
-    if (!createReservation.error) return null
-    const err = createReservation.error as {
+    if (!updateReservation.error) return null
+    const err = updateReservation.error as {
       response?: { status: number; data?: { error?: { message?: string } } }
     }
     if (err.response?.status === 409)
-      return 'Requested quantity not available for this time window.'
-    if (err.response?.status === 404)
-      return 'Resource no longer available.'
-    return 'Failed to create reservation. Please try again.'
+      return 'This reservation is no longer pending or was modified by another user.'
+    if (err.response?.status === 422)
+      return 'Please check the form for invalid values.'
+    if (err.response?.status === 403)
+      return 'You do not have permission to edit this reservation.'
+    return 'Failed to update reservation. Please try again.'
   }
 
-  // Check if quantity exceeds availability
   const quantityExceedsAvailability =
     availability && quantity > availability.available_quantity
 
   const serverError = getErrorMessage()
-  const selectedResource = resourcesData?.data?.find((r) => r.id === resourceId)
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>New Reservation</DialogTitle>
+          <DialogTitle>Edit Reservation</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="resource_id">Resource</Label>
-            <Select value={resourceId || ''} onValueChange={handleResourceChange} disabled={isLoadingResources}>
-              <SelectTrigger id="resource_id">
-                <SelectValue placeholder={isLoadingResources ? "Loading resources..." : "Select a resource"} />
-              </SelectTrigger>
-              <SelectContent>
-                {resourcesData?.data && resourcesData.data.length > 0 ? (
-                  resourcesData.data.map((resource) => (
-                    <SelectItem key={resource.id} value={resource.id}>
-                      {resource.name}
-                    </SelectItem>
-                  ))
-                ) : (
-                  <div className="p-2 text-sm text-muted-foreground">
-                    {isLoadingResources ? 'Loading...' : 'No resources available'}
-                  </div>
-                )}
-              </SelectContent>
-            </Select>
-            {errors.resource_id && (
-              <p className="text-sm text-destructive">{errors.resource_id.message}</p>
-            )}
-          </div>
-
-          {selectedResource && (
-            <p className="text-xs text-muted-foreground">
-              Available: {selectedResource.quantity} units
-            </p>
-          )}
-
-          <div className="flex flex-col gap-1.5">
             <Label htmlFor="quantity">Quantity</Label>
-            <Input
-              id="quantity"
-              type="number"
-              min={1}
-              {...register('quantity')}
-            />
+            <Input id="quantity" type="number" min={1} {...register('quantity')} />
             {errors.quantity && (
               <p className="text-sm text-destructive">{errors.quantity.message}</p>
             )}
@@ -205,7 +140,11 @@ export function CreateReservationModal({
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="start_time">Start Time</Label>
-            <Input id="start_time" type="datetime-local" {...register('start_time')} />
+            <Input
+              id="start_time"
+              type="datetime-local"
+              {...register('start_time')}
+            />
             {errors.start_time && (
               <p className="text-sm text-destructive">{errors.start_time.message}</p>
             )}
@@ -219,7 +158,7 @@ export function CreateReservationModal({
             )}
           </div>
 
-          {resourceId && startTime && endTime && (
+          {startTime && endTime && (
             <div>
               <Label className="text-sm font-medium mb-2 block">Availability</Label>
               <AvailabilityBadge
@@ -263,11 +202,11 @@ export function CreateReservationModal({
               type="submit"
               disabled={
                 isSubmitting ||
-                createReservation.isPending ||
+                updateReservation.isPending ||
                 quantityExceedsAvailability
               }
             >
-              Create Reservation
+              Update Reservation
             </Button>
           </div>
         </form>

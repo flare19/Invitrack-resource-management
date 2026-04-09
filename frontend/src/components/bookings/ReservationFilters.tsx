@@ -24,6 +24,7 @@ export function ReservationFilters({
 }: ReservationFiltersProps) {
   const [fromDate, setFromDate] = useState(values.from ?? '')
   const [toDate, setToDate] = useState(values.to ?? '')
+  const [requestedBy, setRequestedBy] = useState(values.requested_by ?? '')
 
   function handleStatusChange(value: string) {
     onChange({
@@ -51,9 +52,19 @@ export function ReservationFilters({
     })
   }
 
+  function handleRequestedByChange(value: string) {
+    setRequestedBy(value)
+    onChange({
+      ...values,
+      ...(value && { requested_by: value }),
+      page: 1,
+    })
+  }
+
   function handleClearFilters() {
     setFromDate('')
     setToDate('')
+    setRequestedBy('')
     onChange({
       page: 1,
       ...(values.per_page !== undefined && { per_page: values.per_page }),
@@ -104,6 +115,20 @@ export function ReservationFilters({
           className="w-40"
         />
       </div>
+
+      {showUserFilter && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="requested-by">Requested By</Label>
+          <Input
+            id="requested-by"
+            type="text"
+            placeholder="User ID or email"
+            value={requestedBy}
+            onChange={(e) => handleRequestedByChange(e.target.value)}
+            className="w-48"
+          />
+        </div>
+      )}
 
       {hasFilters && (
         <Button
