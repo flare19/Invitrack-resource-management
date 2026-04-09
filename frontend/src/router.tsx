@@ -30,6 +30,8 @@ import ReservationsListPage from '@/pages/bookings/ReservationsListPage'
 import ReservationDetailPage from '@/pages/bookings/ReservationDetailPage'
 import ResourcesListPage from '@/pages/bookings/ResourcesListPage'
 import ResourceDetailPage from '@/pages/bookings/ResourceDetailPage'
+// Settings
+import RolesManagementPage from '@/pages/settings/RolesManagementPage'
 
 // Placeholders — replaced when modules are implemented
 const AuditPage = () => <div>Audit</div>
@@ -104,6 +106,7 @@ export const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           { path: '/audit', element: <AuditPage /> },
+          { path: '/settings/roles', element: <RolesManagementPage /> },
         ],
       },
     ],
