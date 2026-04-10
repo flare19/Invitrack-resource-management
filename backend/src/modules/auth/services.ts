@@ -5,8 +5,9 @@ import { env } from '../../config/env';
 import { AppError } from '../../errors/AppError';
 import { createAccount, findAccountByEmail, createSession, findSessionByTokenHash, updateSessionToken, deleteSession, 
   findEmailVerificationToken, markEmailVerificationTokenUsed, markAccountVerified, findAccountById, createPasswordResetToken, 
-  findPasswordResetToken, markPasswordResetTokenUsed, updatePasswordHash, findOrCreateOAuthAccount, findSessionById, findSessionsByAccountId } from './repository';
-import { sendPasswordResetEmail } from './email';
+  findPasswordResetToken, markPasswordResetTokenUsed, updatePasswordHash, findOrCreateOAuthAccount, findSessionById, findSessionsByAccountId,
+  createEmailVerificationToken,  } from './repository';
+import { sendPasswordResetEmail, sendVerificationEmail } from './email';
 import { RegisterDTO, LoginDTO, AuthTokensDTO, RegisterResponseDTO, LoginResponseDTO, MessageResponseDTO } from './types';
 import { SignOptions, sign, verify } from 'jsonwebtoken';
 import { Strategy as GoogleStrategy, Profile as GoogleProfile } from 'passport-google-oauth20';
@@ -58,6 +59,17 @@ export async function registerService(data: RegisterDTO): Promise<RegisterRespon
     targetType: 'account',
     targetId: account.id,
   }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+
+  const rawVerifyToken = crypto.randomBytes(32).toString('hex');
+  const verifyTokenHash = hashToken(rawVerifyToken);
+  const verifyExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+  await createEmailVerificationToken(account.id, verifyTokenHash, verifyExpiresAt);
+
+  const verifyUrl = `${env.APP_URL}/verify-email?token=${rawVerifyToken}`;
+  sendVerificationEmail(account.email, verifyUrl).catch((err) =>
+    console.error('[mailer] Failed to send verification email:', err)
+  );
 
   return {
     id: account.id,
@@ -199,7 +211,7 @@ export async function forgotPasswordService(email: string): Promise<void> {
 
   await createPasswordResetToken(account.id, tokenHash, expiresAt);
 
-  const resetUrl = `${process.env['APP_URL']}/reset-password?token=${rawToken}`;
+  const resetUrl = `${env.APP_URL}/reset-password?token=${rawToken}`;
   await sendPasswordResetEmail(account.email, resetUrl);
 }
 

@@ -1,13 +1,14 @@
 import nodemailer from 'nodemailer';
+import { env } from '../../config/env';
 
 // PLACEHOLDER: fill SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, APP_URL in .env
 const transporter = nodemailer.createTransport({
-  host: process.env['SMTP_HOST'],
-  port: Number(process.env['SMTP_PORT']),
-  secure: false, // true for port 465, false for 587 (Gmail SMTP)
+  host: env.SMTP_HOST,
+  port: env.SMTP_PORT,
+  secure: false,
   auth: {
-    user: process.env['SMTP_USER'],
-    pass: process.env['SMTP_PASS'],
+    user: env.SMTP_USER,
+    pass: env.SMTP_PASS,
   },
 });
 
@@ -16,7 +17,7 @@ export async function sendPasswordResetEmail(
   resetUrl: string
 ): Promise<void> {
   await transporter.sendMail({
-    from: process.env['SMTP_FROM'],
+    from: env.SMTP_FROM,
     to,
     subject: 'Reset your Invitrack password',
     text: `You requested a password reset. Use the link below (expires in 1 hour):\n\n${resetUrl}\n\nIf you did not request this, ignore this email.`,
@@ -33,7 +34,7 @@ export async function sendVerificationEmail(
   verifyUrl: string
 ): Promise<void> {
   await transporter.sendMail({
-    from: process.env['SMTP_FROM'],
+    from: env.SMTP_FROM,
     to,
     subject: 'Verify your Invitrack email',
     text: `Please verify your email address:\n\n${verifyUrl}\n\nThis link expires in 24 hours.`,

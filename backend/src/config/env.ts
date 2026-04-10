@@ -16,6 +16,14 @@ export const env = {
   // Database
   DATABASE_URL: required('DATABASE_URL'),
 
+  // Mailer
+  SMTP_HOST: required('SMTP_HOST'),
+  SMTP_PORT: parseInt(required('SMTP_PORT'), 10),
+  SMTP_USER: required('SMTP_USER'),
+  SMTP_PASS: required('SMTP_PASS'),
+  SMTP_FROM: required('SMTP_FROM'),
+  APP_URL: required('APP_URL'),
+
   // JWT
   JWT_ACCESS_SECRET: required('JWT_ACCESS_SECRET'),
   JWT_REFRESH_SECRET: required('JWT_REFRESH_SECRET'),
