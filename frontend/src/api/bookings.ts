@@ -92,6 +92,7 @@ export type CreateReservationBody = {
   start_time: string
   end_time: string
   notes?: string
+  override?: boolean
 }
 
 export type UpdateReservationBody = {

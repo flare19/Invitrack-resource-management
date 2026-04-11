@@ -13,7 +13,6 @@ import { useReviewReservation } from '@/hooks/useBookings'
 import { useState } from 'react'
 
 const reviewSchema = z.object({
-  action: z.enum(['approve', 'reject']),
   notes: z.string().max(500).default(''),
 })
 
@@ -42,7 +41,6 @@ export function ReviewActions({
   } = useForm({
     resolver: zodResolver(reviewSchema),
     defaultValues: {
-      action: 'approve',
       notes: '',
     },
   })
@@ -55,7 +53,7 @@ export function ReviewActions({
   async function onSubmit(values: ReviewFormValues): Promise<void> {
     try {
       await reviewMutation.mutateAsync({
-        action: values.action,
+        action,
         ...(values.notes && { notes: values.notes }),
       })
       reset()

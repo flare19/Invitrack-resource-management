@@ -49,6 +49,8 @@ export interface CreateReservationDTO {
   start_time: string;
   end_time: string;
   notes?: string;
+  //refactor: override status
+  override?: boolean;
 }
 
 export interface UpdateReservationDTO {

@@ -148,13 +148,18 @@ export async function getAvailabilityService(
 
 export async function createReservationService(
   data: CreateReservationDTO,
-  accountId: string
+  accountId: string,
+  permissions: string[]
 ): Promise<ReservationDTO> {
   const startTime = new Date(data.start_time);
   const endTime = new Date(data.end_time);
 
   if (endTime <= startTime) {
     throw new AppError(400, 'INVALID_TIME_RANGE', 'end_time must be after start_time.');
+  }
+
+  if (startTime < new Date()) {
+    throw new AppError(400, 'INVALID_TIME_RANGE', 'start_time must be in the future.');
   }
 
   const priority = await findUserHighestPriority(accountId);
@@ -170,24 +175,65 @@ export async function createReservationService(
       throw new AppError(404, 'RESOURCE_NOT_FOUND', 'Resource not found.');
     }
 
-    const result = await tx.reservation.aggregate({
+    const conflicting = await tx.reservation.findMany({
       where: {
         resourceId: data.resource_id,
         status: { in: ['pending', 'approved'] },
         startTime: { lt: endTime },
         endTime: { gt: startTime },
       },
-      _sum: { quantity: true },
+      select: { id: true, quantity: true, priority: true },
     });
 
-    const reservedQuantity = result._sum.quantity ?? 0;
+    const reservedQuantity = conflicting.reduce((sum, r) => sum + r.quantity, 0);
+    const availableQuantity = resource.quantity - reservedQuantity;
 
-    if (data.quantity > resource.quantity - reservedQuantity) {
-      throw new AppError(
-        409,
-        'INSUFFICIENT_AVAILABILITY',
-        'Requested quantity is unavailable in the given time window.'
-      );
+    if (data.quantity > availableQuantity) {
+      if (!data.override) {
+        throw new AppError(
+          409,
+          'INSUFFICIENT_AVAILABILITY',
+          'Requested quantity is unavailable in the given time window.'
+        );
+      }
+
+      if (!permissions.includes('bookings:override')) {
+        throw new AppError(
+          403,
+          'FORBIDDEN',
+          'You do not have permission to override conflicting reservations.'
+        );
+      }
+
+      // Cancel lower-priority conflicting reservations until we have enough quantity
+      const lower = conflicting
+        .filter((r) => r.priority < priority)
+        .sort((a, b) => a.priority - b.priority);
+
+      let freed = availableQuantity;
+      const toCancel: string[] = [];
+
+      for (const r of lower) {
+        if (freed >= data.quantity) break;
+        toCancel.push(r.id);
+        freed += r.quantity;
+      }
+
+      if (freed < data.quantity) {
+        throw new AppError(
+          409,
+          'INSUFFICIENT_AVAILABILITY',
+          'Insufficient lower-priority reservations to override.'
+        );
+      }
+
+      await tx.reservation.updateMany({
+        where: { id: { in: toCancel } },
+        data: {
+          status: 'cancelled',
+          notes: 'Overridden by higher-priority reservation.',
+        },
+      });
     }
 
     return tx.reservation.create({
@@ -215,6 +261,7 @@ export async function createReservationService(
       quantity: data.quantity,
       startTime: data.start_time,
       endTime: data.end_time,
+      override: data.override ?? false,
     },
   }).catch((err) => console.error('[audit] Failed to write audit event:', err));
 

@@ -24,6 +24,8 @@ import {
 } from '@/hooks/useBookings'
 import { AvailabilityBadge } from './AvailabilityBadge'
 import type { CreateReservationBody } from '@/api/bookings'
+import { AlertTriangle } from 'lucide-react'
+import { useAuth } from '@/context/AuthContext'
 
 const createReservationSchema = z.object({
   resource_id: z.string().min(1, 'Resource is required'),
@@ -110,17 +112,13 @@ export function CreateReservationModal({
       return // Form validation should catch this, but double-check
     }
 
-    // Check availability
-    if (availability && values.quantity > availability.available_quantity) {
-      return // UI should prevent submit, but guard here
-    }
-
     const body: CreateReservationBody = {
       resource_id: values.resource_id,
       quantity: values.quantity,
       start_time: values.start_time,
       end_time: values.end_time,
       ...(values.notes && { notes: values.notes }),
+      ...(quantityExceedsAvailability && canOverride && { override: true }),
     }
 
     try {
@@ -131,6 +129,9 @@ export function CreateReservationModal({
       // error handled by mutation error state
     }
   }
+
+  const { permissions } = useAuth()
+  const canOverride = permissions.includes('bookings:override')
 
   function getErrorMessage(): string | null {
     if (!createReservation.error) return null
@@ -242,8 +243,11 @@ export function CreateReservationModal({
           </div>
 
           {quantityExceedsAvailability && (
-            <p className="text-sm text-destructive">
-              Requested quantity exceeds available quantity.
+            <p className={`text-sm flex items-center gap-1.5 ${canOverride ? 'text-amber-500' : 'text-destructive'}`}>
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              {canOverride
+                ? 'Quantity exceeds availability. Submitting will override lower-priority reservations.'
+                : 'Requested quantity exceeds available quantity.'}
             </p>
           )}
 
@@ -264,7 +268,7 @@ export function CreateReservationModal({
               disabled={
                 isSubmitting ||
                 createReservation.isPending ||
-                quantityExceedsAvailability
+                (quantityExceedsAvailability && !canOverride)
               }
             >
               Create Reservation

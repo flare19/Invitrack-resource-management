@@ -203,6 +203,7 @@ export async function createReservationController(
 ): Promise<void> {
   try {
     const accountId = req.user!.id;
+    const permissions = req.user!.permissions;
     const body = req.body as CreateReservationDTO;
 
     if (!body.resource_id || !body.quantity || !body.start_time || !body.end_time) {
@@ -215,9 +216,13 @@ export async function createReservationController(
 
     if (typeof body.quantity !== 'number' || body.quantity < 1) {
       throw new AppError(422, 'INVALID_QUANTITY', 'quantity must be a positive integer.');
+      }
+
+    if (body.override !== undefined && typeof body.override !== 'boolean') {
+      throw new AppError(422, 'INVALID_OVERRIDE', 'override must be a boolean.');
     }
 
-    const reservation = await createReservationService(body, accountId);
+    const reservation = await createReservationService(body, accountId, permissions);
     res.status(201).json(reservation);
   } catch (err) {
     next(err);
