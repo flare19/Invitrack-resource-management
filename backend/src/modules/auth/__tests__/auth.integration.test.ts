@@ -209,11 +209,10 @@ describe('POST /api/v1/auth/logout', () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-// GET /auth/verify-email
+// POST /auth/verify-email
 // ═════════════════════════════════════════════════════════════════════════════
-describe('GET /api/v1/auth/verify-email', () => {
+describe('POST /api/v1/auth/verify-email', () => {
   it('returns 200 and verifies the account', async () => {
-    // Create unverified account with a real verification token
     const account = await prisma.account.create({
       data: {
         email: 'verify@example.com',
@@ -236,8 +235,8 @@ describe('GET /api/v1/auth/verify-email', () => {
     });
 
     const res = await request(app)
-      .get('/api/v1/auth/verify-email')
-      .query({ token: rawToken });
+      .post('/api/v1/auth/verify-email')
+      .send({ token: rawToken });
 
     expect(res.status).toBe(200);
     expect(res.body.message).toBe('Email verified successfully.');
@@ -248,8 +247,8 @@ describe('GET /api/v1/auth/verify-email', () => {
 
   it('returns 400 for an invalid token', async () => {
     const res = await request(app)
-      .get('/api/v1/auth/verify-email')
-      .query({ token: 'completely-invalid-token' });
+      .post('/api/v1/auth/verify-email')
+      .send({ token: 'completely-invalid-token' });
 
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('INVALID_TOKEN');

@@ -37,7 +37,7 @@ export async function resetPassword(token: string, password: string): Promise<vo
 }
 
 export async function verifyEmail(token: string): Promise<void> {
-  await api.get('/auth/verify-email', { params: { token } })
+  return api.post('/auth/verify-email', { token })
 }
 
 export async function getSessions(): Promise<Session[]> {

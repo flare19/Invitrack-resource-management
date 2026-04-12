@@ -146,13 +146,13 @@ Validates the token against `auth.password_reset_tokens` (must not be expired, m
 
 ---
 
-### `GET /auth/verify-email`
+### `POST /auth/verify-email`
 
 Verifies the email address by setting `auth.accounts.is_verified = true`.
 
-**Query parameters**
+**Request body**
 
-| Param   | Type   | Required |
+| Field   | Type   | Required |
 |---------|--------|----------|
 | `token` | string | Yes      |
 

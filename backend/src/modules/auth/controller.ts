@@ -135,7 +135,7 @@ export async function verifyEmailController(
   next: NextFunction
 ): Promise<void> {
   try {
-    const token = req.query['token'] as string;
+    const token = req.body.token as string | undefined
 
     if (!token) {
       res.status(400).json({

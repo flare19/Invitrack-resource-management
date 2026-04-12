@@ -22,6 +22,7 @@ const config: Config = {
       testMatch: ['**/__tests__/**/*.integration.test.ts'],
       globalSetup: '<rootDir>/src/test/globalSetup.ts',
       globalTeardown: '<rootDir>/src/test/globalTeardown.ts',
+      setupFiles: ['<rootDir>/src/test/envSetup.ts'],
       setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts'],
       transform: {
         '^.+\\.tsx?$': ['ts-jest', { tsconfig: '<rootDir>/src/test/tsconfig.json' }],
