@@ -253,7 +253,8 @@ export async function createItemController(
 
     const item = await addItem(
       { sku, name, description, category_id, unit, reorder_threshold, is_bookable },
-      req.user!.id
+      req.user!.id,
+      req.user!.email
     );
 
     res.status(201).json(item);
@@ -351,7 +352,7 @@ export async function deleteItemController(
 ): Promise<void> {
   try {
     const id = req.params.id as string;
-    await removeItem(id);
+    await removeItem(id, req.user!.id, req.user!.email);
     res.status(204).send();
   } catch (err) {
     next(err);

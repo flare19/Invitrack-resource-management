@@ -193,7 +193,8 @@ export async function getItemById(id: string): Promise<ItemDetailDTO> {
 
 export async function addItem(
   data: CreateItemDTO,
-  createdBy: string
+  createdBy: string,
+  createdByEmail: string
 ): Promise<ItemDTO> {
   if (data.category_id) {
     const category = await findCategoryById(data.category_id);
@@ -211,6 +212,7 @@ export async function addItem(
 
   createAuditEvent({
     actorId: createdBy,
+    actorEmail: createdByEmail,
     action: 'inventory.item.created',
     module: 'inventory',
     targetType: 'item',
@@ -272,7 +274,11 @@ export async function editItem(
   }
 }
 
-export async function removeItem(id: string): Promise<void> {
+export async function removeItem(
+  id: string,
+  actorId: string,
+  actorEmail: string
+): Promise<void> {
   const existing = await findItemByIdRaw(id);
 
   if (!existing) {
@@ -281,6 +287,16 @@ export async function removeItem(id: string): Promise<void> {
 
   try {
     await softDeleteItem(id);
+
+    createAuditEvent({
+      actorId,
+      actorEmail,
+      action: 'inventory.item.deleted',
+      module: 'inventory',
+      targetType: 'item',
+      targetId: id,
+      payload: { sku: existing.sku, name: existing.name },
+    }).catch((err) => console.error('[audit] Failed to write audit event:', err));
   } catch (err: unknown) {
     if (
       typeof err === 'object' &&
