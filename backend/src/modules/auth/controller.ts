@@ -25,6 +25,17 @@ export async function registerController(
       return;
     }
 
+    if (typeof password !== 'string' || password.length < 8) {
+      res.status(422).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Password must be at least 8 characters.',
+          details: {},
+        },
+      });
+      return;
+    }
+
     const result = await registerService({ email, password, full_name });
 
     res.status(201).json({
