@@ -9,7 +9,7 @@ authRouter.post('/register', registerController);
 authRouter.post('/login', loginController);
 authRouter.post('/refresh', refreshController);
 authRouter.post('/logout', logoutController);
-authRouter.get('/verify-email', verifyEmailController);
+authRouter.post('/verify-email', verifyEmailController);
 authRouter.post('/forgot-password', forgotPasswordController);
 authRouter.post('/reset-password', resetPasswordController);
 authRouter.get('/oauth/:provider', oauthRedirect);
