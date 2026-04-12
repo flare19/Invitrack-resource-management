@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { verifyEmail } from '@/api/auth'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
@@ -8,8 +8,12 @@ type Status = 'loading' | 'success' | 'error'
 export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams()
   const [status, setStatus] = useState<Status>('loading')
+  const called = useRef(false)
 
   useEffect(() => {
+    if (called.current) return
+    called.current = true
+
     const token = searchParams.get('token')
 
     if (!token) {
