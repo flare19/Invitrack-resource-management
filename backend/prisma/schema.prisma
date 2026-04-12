@@ -199,7 +199,7 @@ model Category {
 
 model Item {
   id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sku              String    @unique @db.VarChar(100)
+  sku              String    @db.VarChar(100)
   name             String    @db.VarChar(255)
   description      String?   @db.Text
   categoryId       String?   @map("category_id") @db.Uuid
