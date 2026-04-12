@@ -9,6 +9,7 @@ import RegisterPage from '@/pages/auth/RegisterPage'
 import VerifyEmailPage from '@/pages/auth/VerifyEmailPage'
 import ForgotPasswordPage from '@/pages/auth/ForgotPasswordPage'
 import ResetPasswordPage from '@/pages/auth/ResetPasswordPage'
+import OAuthSuccessPage from '@/pages/auth/OAuthSuccesPage'
 
 // Dashboard
 import DashboardPage from '@/pages/dashboard/DashboardPage'
@@ -64,6 +65,10 @@ export const router = createBrowserRouter([
   {
     path: '/reset-password',
     element: <ResetPasswordPage />,
+  },
+  {
+    path: '/oauth/success',
+    element: <OAuthSuccessPage />,
   },
   // Authenticated routes — wrapped in AppShell
   {

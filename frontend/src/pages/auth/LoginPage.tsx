@@ -37,6 +37,7 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const registered = searchParams.get('registered') === 'true'
+  const emailConflict = searchParams.get('error') === 'email_conflict'
 
   const {
     register,
@@ -101,6 +102,12 @@ export default function LoginPage() {
         {registered && (
           <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
             Account created. Check your email to verify your account.
+          </p>
+        )}
+
+        {emailConflict && (
+          <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+            This email is already registered. Please sign in with your password.
           </p>
         )}
 

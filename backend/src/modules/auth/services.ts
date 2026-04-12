@@ -295,18 +295,32 @@ export function configureOAuthStrategies(): void {
         clientID: env.GITHUB_CLIENT_ID,
         clientSecret: env.GITHUB_CLIENT_SECRET,
         callbackURL: `${env.OAUTH_CALLBACK_BASE_URL}/api/v1/auth/oauth/github/callback`,
+        scope: ['user:email'],
       },
-      async (_accessToken: string,
+      async (accessToken: string,
             _refreshToken: string,
             profile: GithubProfile,
             done: (error: unknown, user?: Express.User | false) => void) => {
         try {
-          const email = profile.emails?.[0]?.value;
-          const fullName = profile.displayName ?? profile.username ?? 'GitHub User';
+          let email = profile.emails?.[0]?.value;
+
+          if (!email) {
+            // Fetch emails directly when profile email is private
+            const res = await fetch('https://api.github.com/user/emails', {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                Accept: 'application/vnd.github+json',
+              },
+            });
+            const emails = await res.json() as Array<{ email: string; primary: boolean; verified: boolean }>;
+            email = emails.find((e) => e.primary && e.verified)?.email;
+          }
 
           if (!email) {
             return done(new AppError(400, 'OAUTH_NO_EMAIL', 'No email returned from GitHub.'));
           }
+
+          const fullName = profile.displayName ?? profile.username ?? 'GitHub User';
 
           const result = await findOrCreateOAuthAccount(
             'github',

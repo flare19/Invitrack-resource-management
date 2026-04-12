@@ -4,6 +4,7 @@ import { registerService, loginService, refreshService, logoutService, verifyEma
 import crypto from 'crypto';
 import passport from 'passport';
 import { env } from '../../config/env';
+import { AppError } from '../../errors/AppError';
 
 export async function registerController(
   req: Request,
@@ -291,7 +292,17 @@ export async function oauthCallback(
       { session: false },
       async (err: unknown, account: { id: string; email: string } | false) => {
         try {
-          if (err) return next(err);
+            if (err) {
+            if (
+              err instanceof AppError &&
+              err.code === 'EMAIL_CONFLICT'
+            ) {
+              return res.redirect(
+                `${env.FRONTEND_URL}/login?error=email_conflict`
+              );
+            }
+            return next(err);
+          }
 
           if (!account) {
             return res.status(401).json({
