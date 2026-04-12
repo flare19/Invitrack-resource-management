@@ -223,7 +223,9 @@ export async function addItem(
 
 export async function editItem(
   id: string,
-  data: UpdateItemDTO
+  data: UpdateItemDTO,
+  actorId: string,
+  actorEmail: string
 ): Promise<ItemDTO> {
   const existing = await findItemByIdRaw(id);
 
@@ -242,6 +244,8 @@ export async function editItem(
     const updated = await updateItem(id, data);
 
     createAuditEvent({
+      actorId,
+      actorEmail,
       action: 'inventory.item.updated',
       module: 'inventory',
       targetType: 'item',

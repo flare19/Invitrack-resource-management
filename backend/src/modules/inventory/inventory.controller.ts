@@ -336,7 +336,7 @@ export async function updateItemController(
       unit,
       reorder_threshold,
       is_bookable,
-    });
+    }, req.user!.id, req.user!.email);
 
     res.status(200).json(item);
   } catch (err) {
