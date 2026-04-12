@@ -721,3 +721,37 @@ Timing: Both jobs will run daily at 00:00 UTC (0 0 * * *).
 - Redundancy: If the application instance is down at midnight, the job will not run. We will need to implement "catch-up" logic or manual triggers in a future iteration if 100% uptime is critical.
 - Concurrency: If the application scales to multiple instances, the job will trigger on every instance.
 - Mitigation: For the MVP, we will rely on UPSERT logic in the database to ensure idempotency and prevent duplicate data rows.
+
+---
+
+## ADR-029 — Per-Route Rate Limiting on Sensitive Auth Endpoints
+
+| Field  | Value      |
+|--------|------------|
+| Date   | 2026-04-13 |
+| Status | Decided    |
+
+### Decision
+
+Rate limiting is applied to four auth endpoints using `express-rate-limit`, scoped at the route level via middleware defined in `src/middleware/rateLimiter.ts`:
+
+| Endpoint                     | Limit       | Window     | Rationale                      |
+|------------------------------|-------------|------------|--------------------------------|
+| `POST /auth/login`           | 5 requests  | 15 minutes | Brute-force credential attacks |
+| `POST /auth/register`        | 10 requests | 60 minutes | Spam account creation          |
+| `POST /auth/forgot-password` | 5 requests  | 15 minutes | Email flooding / enumeration   |
+| `POST /auth/reset-password`  | 5 requests  | 15 minutes | Reset token brute-force        |
+
+`POST /auth/refresh` is intentionally excluded — legitimate clients hit it on every page load during session rehydration; limiting it would lock out real users. All other auth endpoints (`/logout`, `/verify-email`, OAuth routes, `/sessions`) are also excluded as they are not abuse vectors of the same class.
+
+Rate-limit rejections return `429` with the standard app error envelope (`RATE_LIMIT_EXCEEDED`). The `RateLimit` response header (draft-7) is emitted; legacy `X-RateLimit-*` headers are suppressed.
+
+### Rationale
+
+`api-reference.md` specifies that auth endpoints are protected via rate limiting and abuse detection mechanisms. This was previously unimplemented. Per-route limiters are preferred over a single shared limiter so each endpoint maintains an independent counter — a user exhausting `/login` attempts is not penalised on `/forgot-password` and vice versa.
+
+`express-rate-limit` was chosen for its zero-infrastructure footprint. It uses an in-memory store by default, which is correct for the current single-instance deployment on AWS EC2 (ADR-018). If the app scales to multiple instances, the store can be swapped to a Redis-backed implementation (`rate-limit-redis`) without changing the middleware interface.
+
+### Trade-offs Accepted
+
+The in-memory store does not share state across multiple Node.js processes or instances. At current deployment scale this is a non-issue. Limits reset on process restart, which is acceptable for a portfolio-grade system.
