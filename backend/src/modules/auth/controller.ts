@@ -186,6 +186,18 @@ export async function forgotPasswordController(
       return;
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      res.status(422).json({
+        error: {
+          code: 'INVALID_EMAIL',
+          message: 'Email address is not valid.',
+          details: {},
+        },
+      });
+      return;
+    }
+
     await forgotPasswordService(email);
 
     res.status(202).end();
