@@ -80,7 +80,7 @@ export function ItemFilters({ values, onChange }: ItemFiltersProps) {
           value={values.category_id ?? 'all'}
           onValueChange={handleCategoryChange}
         >
-          <SelectTrigger id="category" className="w-44">
+          <SelectTrigger id="category" className="w-44 text-white data-[placeholder]:text-white">
             <SelectValue placeholder="All categories" />
           </SelectTrigger>
           <SelectContent>

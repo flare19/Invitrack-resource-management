@@ -67,8 +67,8 @@ export default function AnalyticsPage() {
         <button
           className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'inventory'
-              ? 'border-gray-900 text-gray-900'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
+              ? 'border-white text-white'
+              : 'border-transparent text-gray-400 hover:text-gray-200'
           }`}
           onClick={() => setActiveTab('inventory')}
         >
@@ -77,8 +77,8 @@ export default function AnalyticsPage() {
         <button
           className={`pb-2 px-4 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'bookings'
-              ? 'border-gray-900 text-gray-900'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
+              ? 'border-white text-white'
+              : 'border-transparent text-gray-400 hover:text-gray-200'
           }`}
           onClick={() => setActiveTab('bookings')}
         >
@@ -144,7 +144,7 @@ export default function AnalyticsPage() {
               size="sm"
               onClick={() =>
                 setInventoryParams(prev => ({ ...prev, from: undefined, to: undefined }))
-              }
+              } className="text-white border-white hover:text-gray-200"
             >
               Clear dates
             </Button>

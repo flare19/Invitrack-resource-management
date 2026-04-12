@@ -196,7 +196,7 @@ export default function AuditPage() {
               size="sm"
               onClick={handlePrevious}
               disabled={!meta || meta.page <= 1}
-              className="gap-2"
+              className="gap-2 !text-white !border-white disabled:!text-gray-500 disabled:!border-gray-600 disabled:!bg-transparent"
             >
               <ChevronLeft className="h-4 w-4" />
               Previous
@@ -206,7 +206,7 @@ export default function AuditPage() {
               size="sm"
               onClick={handleNext}
               disabled={!meta || meta.page >= totalPages}
-              className="gap-2"
+              className="gap-2 !text-white !border-white disabled:!text-gray-500 disabled:!border-gray-600 disabled:!bg-transparent"
             >
               Next
               <ChevronRight className="h-4 w-4" />

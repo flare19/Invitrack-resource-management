@@ -154,7 +154,7 @@ export function CreateReservationModal({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto [&>button]:text-white [&>button]:hover:text-gray-300">
         <DialogHeader>
           <DialogTitle>New Reservation</DialogTitle>
         </DialogHeader>
@@ -163,7 +163,7 @@ export function CreateReservationModal({
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="resource_id">Resource</Label>
             <Select value={resourceId || ''} onValueChange={handleResourceChange} disabled={isLoadingResources}>
-              <SelectTrigger id="resource_id">
+              <SelectTrigger id="resource_id" className='text-white data-[placeholder]:text-white'>
                 <SelectValue placeholder={isLoadingResources ? "Loading resources..." : "Select a resource"} />
               </SelectTrigger>
               <SelectContent>
@@ -260,6 +260,7 @@ export function CreateReservationModal({
               type="button"
               variant="outline"
               onClick={() => handleOpenChange(false)}
+              className="text-white border-white hover:text-gray-200"
             >
               Cancel
             </Button>

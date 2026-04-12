@@ -150,7 +150,7 @@ export function UsersListPage() {
           <Button onClick={applyFilters} size="sm">
             Apply
           </Button>
-          <Button onClick={clearFilters} variant="outline" size="sm">
+          <Button onClick={clearFilters} variant="outline" size="sm" className='text-white'>
             Clear
           </Button>
         </div>

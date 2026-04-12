@@ -81,7 +81,7 @@ export function ReservationFilters({
           value={values.status ?? 'all'}
           onValueChange={handleStatusChange}
         >
-          <SelectTrigger id="status" className="w-40">
+          <SelectTrigger id="status" className="w-40 text-white data-[placeholder]:text-white">
             <SelectValue placeholder="All statuses" />
           </SelectTrigger>
           <SelectContent>

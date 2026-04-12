@@ -144,6 +144,7 @@ export function ReviewActions({
             type="button"
             variant="ghost"
             size="sm"
+            className="text-white hover:text-gray-200"
             onClick={() => {
               setAction('approve')
               setIsOpen(true)
@@ -156,6 +157,7 @@ export function ReviewActions({
             type="button"
             variant="ghost"
             size="sm"
+            className="text-white hover:text-gray-200"
             onClick={() => {
               setAction('reject')
               setIsOpen(true)
@@ -172,7 +174,7 @@ export function ReviewActions({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md [&>[data-slot=dialog-close]]:text-red-500 [&>[data-slot=dialog-close]]:hover:text-red-400">
           <DialogHeader>
             <DialogTitle>Review Reservation</DialogTitle>
           </DialogHeader>
@@ -183,7 +185,11 @@ export function ReviewActions({
                 type="button"
                 variant={action === 'approve' ? 'default' : 'outline'}
                 onClick={() => setAction('approve')}
-                className="flex-1"
+                className={`flex-1 text-white ${
+                  action !== 'approve'
+                    ? '!border !border-white'
+                    : '!border !border-transparent'
+                }`}
               >
                 Approve
               </Button>
@@ -191,7 +197,11 @@ export function ReviewActions({
                 type="button"
                 variant={action === 'reject' ? 'default' : 'outline'}
                 onClick={() => setAction('reject')}
-                className="flex-1"
+                className={`flex-1 text-white ${
+                  action !== 'reject'
+                    ? '!border !border-white'
+                    : '!border !border-transparent'
+                }`}
               >
                 Reject
               </Button>
@@ -217,6 +227,7 @@ export function ReviewActions({
                 type="button"
                 variant="outline"
                 onClick={() => handleOpenChange(false)}
+                className="!text-white !border-white hover:!text-gray-200"
               >
                 Cancel
               </Button>

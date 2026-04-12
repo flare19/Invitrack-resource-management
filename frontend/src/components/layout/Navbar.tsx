@@ -14,7 +14,7 @@ export default function Navbar() {
         </div>
         <button
           onClick={() => void logout()}
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-1 text-sm text-gray-300 hover:text-white transition-colors"
         >
           <LogOut className="h-4 w-4" />
           <span>Logout</span>

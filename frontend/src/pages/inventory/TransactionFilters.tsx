@@ -60,7 +60,7 @@ export function TransactionFilters({
     <div className="border rounded-lg p-4 space-y-4">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="text-sm font-medium hover:underline w-full text-left"
+        className="text-sm font-medium hover:underline w-full text-left text-white"
       >
         {isExpanded ? '▼' : '▶'} Filters
         {hasActiveFilters && (

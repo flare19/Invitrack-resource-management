@@ -87,12 +87,14 @@ export default function RolesManagementPage() {
                   onClick={() => setSelectedRoleId(role.id)}
                   className={`w-full text-left rounded-lg border p-3 transition-colors ${
                     selectedRoleId === role.id
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 bg-white hover:bg-gray-50'
+                      ? 'border-blue-400 bg-blue-900/40'
+                      : 'border-gray-700 bg-gray-900 hover:bg-gray-800'
                   }`}
                 >
-                  <p className="font-medium text-gray-900">{role.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Priority: {role.priority}</p>
+                  <p className="font-medium text-white">{role.name}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Priority: {role.priority}
+                  </p>
                 </button>
               ))}
             </div>

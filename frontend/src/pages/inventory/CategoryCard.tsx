@@ -40,7 +40,7 @@ export function CategoryCard({
             size="sm"
             onClick={handleDelete}
             disabled={isDeleting}
-            className="flex-shrink-0"
+            className="flex-shrink-0 text-destructive hover:text-destructive/80"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
