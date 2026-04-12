@@ -312,13 +312,14 @@ export async function reviewReservationController(
   try {
     const id = req.params['id'] as string;
     const reviewerId = req.user!.id;
+    const reviewerEmail = req.user!.email;
     const body = req.body as ReviewReservationDTO;
 
     if (!body.action || !['approve', 'reject'].includes(body.action)) {
       throw new AppError(400, 'INVALID_ACTION', 'action must be "approve" or "reject".');
     }
 
-    const reservation = await reviewReservationService(id, body, reviewerId);
+    const reservation = await reviewReservationService(id, body, reviewerId, reviewerEmail);
     res.status(200).json(reservation);
   } catch (err) {
     next(err);

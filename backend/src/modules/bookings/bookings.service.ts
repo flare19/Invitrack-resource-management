@@ -400,7 +400,8 @@ export async function updateReservationService(
 export async function reviewReservationService(
   id: string,
   data: ReviewReservationDTO,
-  reviewerId: string
+  reviewerId: string,
+  reviewerEmail: string
 ): Promise<ReservationDTO> {
   const reservation = await findReservationById(id);
 
@@ -460,6 +461,15 @@ export async function reviewReservationService(
       });
     });
 
+    createAuditEvent({
+      actorId: reviewerId,
+      actorEmail: reviewerEmail,
+      action: 'bookings.reservation.approved',
+      module: 'bookings',
+      targetType: 'reservation',
+      targetId: reservation.id,
+    }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+
     return formatReservation(updated);
   }
 
@@ -473,13 +483,13 @@ export async function reviewReservationService(
 
   createAuditEvent({
     actorId: reviewerId,
-    action: data.action === 'reject'
-      ? 'bookings.reservation.rejected'
-      : 'bookings.reservation.approved',
+    actorEmail: reviewerEmail,
+    action: 'bookings.reservation.rejected',
     module: 'bookings',
     targetType: 'reservation',
     targetId: reservation.id,
   }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+
 
   return formatReservation(updated);
 }
