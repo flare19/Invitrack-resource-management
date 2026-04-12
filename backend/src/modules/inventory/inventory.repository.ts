@@ -158,8 +158,11 @@ export async function findItemByIdRaw(id: string) {
 }
 
 export async function findItemBySku(sku: string) {
-  return prisma.item.findUnique({
-    where: { sku },
+  return prisma.item.findFirst({
+    where: {
+      sku,
+      isActive: true,
+    },
   });
 }
 

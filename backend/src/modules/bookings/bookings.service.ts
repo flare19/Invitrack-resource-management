@@ -205,10 +205,17 @@ export async function createReservationService(
         );
       }
 
-      // Cancel lower-priority conflicting reservations until we have enough quantity
       const lower = conflicting
-        .filter((r) => r.priority < priority)
-        .sort((a, b) => a.priority - b.priority);
+      .filter((r) => r.priority < priority)
+      .sort((a, b) => a.priority - b.priority);
+
+      if (lower.length === 0) {
+        throw new AppError(
+          409,
+          'INSUFFICIENT_AVAILABILITY',
+          'Cannot override — no conflicting reservations have lower priority.'
+        );
+      }
 
       let freed = availableQuantity;
       const toCancel: string[] = [];
