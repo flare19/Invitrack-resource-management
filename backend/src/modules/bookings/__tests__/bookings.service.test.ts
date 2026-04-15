@@ -20,6 +20,8 @@ jest.mock('../../../config/prisma', () => ({
     $transaction: jest.fn(),
   },
 }));
+// ─── Mock the audit module ────────────────────────────────────────────────────
+jest.mock('../../../modules/audit/audit.service');
 
 import {
   findAllResources,
@@ -34,6 +36,7 @@ import {
   updateReservation,
 } from '../bookings.repository';
 import prisma from '../../../config/prisma';
+import { createAuditEvent } from '../../../modules/audit/audit.service';
 
 // ─── Cast mocks ───────────────────────────────────────────────────────────────
 const mockFindAllResources = findAllResources as jest.MockedFunction<typeof findAllResources>;
@@ -47,6 +50,7 @@ const mockFindReservations = findReservations as jest.MockedFunction<typeof find
 const mockFindReservationById = findReservationById as jest.MockedFunction<typeof findReservationById>;
 const mockUpdateReservation = updateReservation as jest.MockedFunction<typeof updateReservation>;
 const mockPrismaTransaction = prisma.$transaction as jest.MockedFunction<typeof prisma.$transaction>;
+const mockCreateAuditEvent = createAuditEvent as jest.MockedFunction<typeof createAuditEvent>;
 
 // ─── Shared fixtures ──────────────────────────────────────────────────────────
 const mockResource = {
@@ -80,20 +84,21 @@ const mockReservation = {
   resourceId: 'res-uuid',
   requestedBy: 'user-uuid',
   quantity: 1,
-  startTime: new Date('2024-03-07T09:00:00Z'),
-  endTime: new Date('2024-03-07T11:00:00Z'),
+  startTime: new Date(Date.now() + 86400000), // 1 day in future
+  endTime: new Date(Date.now() + 90000000), // 1.04 days in future
   status: 'pending',
   priority: 10,
   notes: null,
   reviewedBy: null,
   reviewedAt: null,
-  createdAt: new Date('2024-03-06T10:00:00Z'),
-  updatedAt: new Date('2024-03-06T10:00:00Z'),
+  createdAt: new Date(),
+  updatedAt: new Date(),
 };
 
 // ─── Reset mocks between tests ────────────────────────────────────────────────
 beforeEach(() => {
   jest.resetAllMocks();
+  mockCreateAuditEvent.mockResolvedValue(undefined as any);
 });
 
 // ============================================================
@@ -217,8 +222,8 @@ describe('updateResourceService', () => {
 // ============================================================
 
 describe('getAvailabilityService', () => {
-  const startTime = new Date('2024-03-07T09:00:00Z');
-  const endTime = new Date('2024-03-07T11:00:00Z');
+  const startTime = new Date(Date.now() + 86400000); // 1 day in future
+  const endTime = new Date(Date.now() + 90000000); // 1.04 days in future
 
   it('should return availability with correct quantities', async () => {
     mockFindResourceById.mockResolvedValue(mockResource);
@@ -256,12 +261,15 @@ describe('getAvailabilityService', () => {
 
 describe('createReservationService', () => {
   it('should throw 400 if end_time is before start_time', async () => {
+    const futureStart = new Date(Date.now() + 86400000).toISOString();
+    const futureEnd = new Date(Date.now() + 82800000).toISOString();
+
     const err = await createReservationService(
       {
         resource_id: 'res-uuid',
         quantity: 1,
-        start_time: '2024-03-07T11:00:00Z',
-        end_time: '2024-03-07T09:00:00Z',
+        start_time: futureStart,
+        end_time: futureEnd,
       },
       'user-uuid'
     ).catch((e) => e);
@@ -271,6 +279,9 @@ describe('createReservationService', () => {
   });
 
   it('should create a reservation successfully', async () => {
+    const futureStart = new Date(Date.now() + 86400000).toISOString();
+    const futureEnd = new Date(Date.now() + 90000000).toISOString();
+
     mockFindUserHighestPriority.mockResolvedValue(10);
     mockPrismaTransaction.mockResolvedValue(mockReservation);
 
@@ -278,8 +289,8 @@ describe('createReservationService', () => {
       {
         resource_id: 'res-uuid',
         quantity: 1,
-        start_time: '2024-03-07T09:00:00Z',
-        end_time: '2024-03-07T11:00:00Z',
+        start_time: futureStart,
+        end_time: futureEnd,
       },
       'user-uuid'
     );
@@ -291,6 +302,9 @@ describe('createReservationService', () => {
   });
 
   it('should use priority 0 if user has no roles', async () => {
+    const futureStart = new Date(Date.now() + 86400000).toISOString();
+    const futureEnd = new Date(Date.now() + 90000000).toISOString();
+
     mockFindUserHighestPriority.mockResolvedValue(0);
     mockPrismaTransaction.mockResolvedValue(mockReservation);
 
@@ -298,8 +312,8 @@ describe('createReservationService', () => {
       {
         resource_id: 'res-uuid',
         quantity: 1,
-        start_time: '2024-03-07T09:00:00Z',
-        end_time: '2024-03-07T11:00:00Z',
+        start_time: futureStart,
+        end_time: futureEnd,
       },
       'user-uuid'
     );

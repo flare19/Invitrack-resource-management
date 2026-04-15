@@ -16,6 +16,8 @@ import {
 
 // ─── Mock the entire repository module ───────────────────────────────────────
 jest.mock('../inventory.repository');
+// ─── Mock the audit module ────────────────────────────────────────────────────
+jest.mock('../../../modules/audit/audit.service');
 
 // ─── Import mocked repository functions ──────────────────────────────────────
 import {
@@ -38,6 +40,7 @@ import {
   createTransactionWithStockUpdate,
   findTransactions,
 } from '../inventory.repository';
+import { createAuditEvent } from '../../../modules/audit/audit.service';
 
 // ─── Cast mocks ───────────────────────────────────────────────────────────────
 const mockFindAllCategories = findAllCategories as jest.MockedFunction<typeof findAllCategories>;
@@ -58,6 +61,7 @@ const mockFindStockLevelByItemAndLocation = findStockLevelByItemAndLocation as j
 const mockUpsertStockLevel = upsertStockLevel as jest.MockedFunction<typeof upsertStockLevel>;
 const mockCreateTransactionWithStockUpdate = createTransactionWithStockUpdate as jest.MockedFunction<typeof createTransactionWithStockUpdate>;
 const mockFindTransactions = findTransactions as jest.MockedFunction<typeof findTransactions>;
+const mockCreateAuditEvent = createAuditEvent as jest.MockedFunction<typeof createAuditEvent>;
 
 // ─── Shared fixtures ──────────────────────────────────────────────────────────
 const mockCategory = {
@@ -130,6 +134,7 @@ const mockTransaction = {
 // ─── Reset mocks between tests ────────────────────────────────────────────────
 beforeEach(() => {
   jest.resetAllMocks();
+  mockCreateAuditEvent.mockResolvedValue(undefined as any);
 });
 
 // ============================================================

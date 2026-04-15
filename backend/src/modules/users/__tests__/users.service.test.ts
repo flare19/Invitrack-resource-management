@@ -12,6 +12,8 @@ import { getMyProfileService, updateMyProfileService, uploadAvatarService, listU
 
 // ─── Mock the entire repository module ───────────────────────────────────────
 jest.mock('../repository');
+// ─── Mock the audit module ────────────────────────────────────────────────────
+jest.mock('../../../modules/audit/audit.service');
 
 // ─── Import mocked repository functions ──────────────────────────────────────
 import { findAccountWithProfile, updateProfileById, findManyAccounts,
@@ -28,6 +30,7 @@ import { findAccountWithProfile, updateProfileById, findManyAccounts,
   findRolePermission,
   assignPermissionToRole,
   removePermissionFromRole } from '../repository';
+import { createAuditEvent } from '../../../modules/audit/audit.service';
 
 // ─── Cast mocks ───────────────────────────────────────────────────────────────
 const mockFindAccountWithProfile = findAccountWithProfile as jest.MockedFunction<typeof findAccountWithProfile>;
@@ -46,6 +49,7 @@ const mockFindPermissionById = findPermissionById as jest.MockedFunction<typeof 
 const mockFindRolePermission = findRolePermission as jest.MockedFunction<typeof findRolePermission>;
 const mockAssignPermissionToRole = assignPermissionToRole as jest.MockedFunction<typeof assignPermissionToRole>;
 const mockRemovePermissionFromRole = removePermissionFromRole as jest.MockedFunction<typeof removePermissionFromRole>;
+const mockCreateAuditEvent = createAuditEvent as jest.MockedFunction<typeof createAuditEvent>;
 
 // ─── Additional fixtures ──────────────────────────────────────────────────────
 const fakeRoles = [
@@ -91,6 +95,7 @@ const fakeAccount = {
 // ─── Clear all mocks between tests ───────────────────────────────────────────
 beforeEach(() => {
   jest.clearAllMocks();
+  mockCreateAuditEvent.mockResolvedValue(undefined as any);
 });
 
 // ═════════════════════════════════════════════════════════════════════════════

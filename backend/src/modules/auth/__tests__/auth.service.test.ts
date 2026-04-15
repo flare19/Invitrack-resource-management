@@ -14,6 +14,8 @@ import {
 jest.mock('../repository');
 // ─── Mock the email module ────────────────────────────────────────────────────
 jest.mock('../email');
+// ─── Mock the audit module ────────────────────────────────────────────────────
+jest.mock('../../../modules/audit/audit.service');
 // ─── Mock env config ──────────────────────────────────────────────────────────
 jest.mock('../../../config/env', () => ({
   env: {
@@ -48,7 +50,8 @@ import {
   markPasswordResetTokenUsed,
   updatePasswordHash,
 } from '../repository';
-import { sendPasswordResetEmail } from '../email';
+import { sendPasswordResetEmail, sendVerificationEmail } from '../email';
+import { createAuditEvent } from '../../../modules/audit/audit.service';
 
 // Cast all mocked imports so TypeScript knows they are Jest mocks
 const mockFindAccountByEmail = findAccountByEmail as jest.MockedFunction<typeof findAccountByEmail>;
@@ -66,6 +69,8 @@ const mockFindPasswordResetToken = findPasswordResetToken as jest.MockedFunction
 const mockMarkPasswordResetTokenUsed = markPasswordResetTokenUsed as jest.MockedFunction<typeof markPasswordResetTokenUsed>;
 const mockUpdatePasswordHash = updatePasswordHash as jest.MockedFunction<typeof updatePasswordHash>;
 const mockSendPasswordResetEmail = sendPasswordResetEmail as jest.MockedFunction<typeof sendPasswordResetEmail>;
+const mockSendVerificationEmail = sendVerificationEmail as jest.MockedFunction<typeof sendVerificationEmail>;
+const mockCreateAuditEvent = createAuditEvent as jest.MockedFunction<typeof createAuditEvent>;
 
 // ─── Shared test fixtures ─────────────────────────────────────────────────────
 const fakeAccount = {
@@ -84,11 +89,15 @@ const fakeSession = {
   refreshToken: 'hashed-token',
   expiresAt: new Date(Date.now() + 604800000), // valid: 7 days from now
   createdAt: new Date(),
+  userAgent: null, // <-- Add this
+  ipAddress: null, // <-- Add this
 };
 
 // ─── Clear all mocks between tests ───────────────────────────────────────────
 beforeEach(() => {
   jest.clearAllMocks();
+  mockSendVerificationEmail.mockResolvedValue(undefined as any);
+  mockCreateAuditEvent.mockResolvedValue(undefined as any);
 });
 
 // ═════════════════════════════════════════════════════════════════════════════

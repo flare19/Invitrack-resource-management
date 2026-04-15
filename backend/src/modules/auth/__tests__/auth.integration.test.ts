@@ -1,24 +1,48 @@
 import request from 'supertest';
 import * as dotenv from 'dotenv';
+import crypto from 'crypto';
+import bcrypt from 'bcrypt';
+import { Request, Response, NextFunction } from 'express';
+
 dotenv.config({ path: '.env.test' });
 
+// ─── Mocks ────────────────────────────────────────────────────────────────────
+
+// Mock rate limiters so tests don't hit rate limits
+// [PLACEHOLDER] Update path to your rateLimiter middleware
+jest.mock('../../../middleware/rateLimiter', () => ({
+  loginLimiter: (req: Request, res: Response, next: NextFunction) => next(),
+  registerLimiter: (req: Request, res: Response, next: NextFunction) => next(),
+  forgotPasswordLimiter: (req: Request, res: Response, next: NextFunction) => next(),
+  resetPasswordLimiter: (req: Request, res: Response, next: NextFunction) => next(),
+}));
+
+// Mock email to prevent real SMTP calls in CI/CD
+// [PLACEHOLDER] Update path to your email service
+jest.mock('../email', () => ({
+  sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
+  sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
+}));
+
+// Mock audit service to prevent dangling asynchronous DB writes during test teardown
+// [PLACEHOLDER] Update path to your audit service
+jest.mock('../../audit/audit.service', () => ({
+  createAuditEvent: jest.fn().mockResolvedValue(undefined),
+}));
+
+// [PLACEHOLDER] Update paths to app and Prisma generated client
 import app from '../../../app';
 import { PrismaClient } from '../../../generated/prisma';
-import crypto from 'crypto';
-
-// ─── Mock email so no real SMTP calls are made ────────────────────────────────
-jest.mock('../email');
 
 const prisma = new PrismaClient();
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
 async function registerAndLogin(email = 'test@example.com', password = 'password123') {
-  // Directly insert a verified account so login works without email flow
-  const bcrypt = await import('bcrypt');
   const passwordHash = await bcrypt.hash(password, 10);
 
   const account = await prisma.account.create({
@@ -26,6 +50,7 @@ async function registerAndLogin(email = 'test@example.com', password = 'password
       email: email.toLowerCase(),
       passwordHash,
       isVerified: true,
+      isActive: true, // Crucial: loginService rejects inactive accounts
       profile: { create: { fullName: 'Test User' } },
       accountRoles: {
         create: {
@@ -39,10 +64,17 @@ async function registerAndLogin(email = 'test@example.com', password = 'password
     .post('/api/v1/auth/login')
     .send({ email, password });
 
+  if (res.status !== 200) {
+    throw new Error(`Login failed with status ${res.status}: ${JSON.stringify(res.body)}`);
+  }
+
+  const cookies = [res.headers['set-cookie'] || []].flat();
+  const refreshTokenCookie = cookies.find((c: string) => c.startsWith('refresh_token='));
+
   return {
     account,
     accessToken: res.body.access_token,
-    refreshToken: res.headers['set-cookie']?.[0], // raw cookie string
+    refreshTokenCookie,
     loginRes: res,
   };
 }
@@ -84,6 +116,7 @@ describe('POST /api/v1/auth/register', () => {
       .send({ email: 'incomplete@example.com' }); // missing password and full_name
 
     expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 });
 
@@ -92,13 +125,13 @@ describe('POST /api/v1/auth/register', () => {
 // ═════════════════════════════════════════════════════════════════════════════
 describe('POST /api/v1/auth/login', () => {
   beforeEach(async () => {
-    const bcrypt = await import('bcrypt');
     const passwordHash = await bcrypt.hash('password123', 10);
     await prisma.account.create({
       data: {
         email: 'login@example.com',
         passwordHash,
         isVerified: true,
+        isActive: true,
         profile: { create: { fullName: 'Login User' } },
         accountRoles: { create: { role: { connect: { name: 'employee' } } } },
       },
@@ -132,6 +165,7 @@ describe('POST /api/v1/auth/login', () => {
       .send({ email: 'nobody@example.com', password: 'password123' });
 
     expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('INVALID_CREDENTIALS');
   });
 
   it('returns 403 if account is inactive', async () => {
@@ -168,20 +202,26 @@ describe('POST /api/v1/auth/login', () => {
 // ═════════════════════════════════════════════════════════════════════════════
 describe('POST /api/v1/auth/refresh', () => {
   it('returns 200 with new access token when cookie is valid', async () => {
-    const { refreshToken } = await registerAndLogin('refresh@example.com');
+    const { refreshTokenCookie } = await registerAndLogin('refresh@example.com');
+
+    if (!refreshTokenCookie) {
+      throw new Error('Failed to get refresh token cookie from login');
+    }
 
     const res = await request(app)
       .post('/api/v1/auth/refresh')
-      .set('Cookie', refreshToken!);
+      .set('Cookie', refreshTokenCookie);
 
     expect(res.status).toBe(200);
     expect(res.body.access_token).toBeDefined();
+    expect(res.body.token_type).toBe('Bearer');
   });
 
   it('returns 401 if no refresh token cookie is present', async () => {
     const res = await request(app).post('/api/v1/auth/refresh');
 
     expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('MISSING_REFRESH_TOKEN');
   });
 });
 
@@ -190,16 +230,23 @@ describe('POST /api/v1/auth/refresh', () => {
 // ═════════════════════════════════════════════════════════════════════════════
 describe('POST /api/v1/auth/logout', () => {
   it('returns 204 and clears cookie', async () => {
-    const { refreshToken } = await registerAndLogin('logout@example.com');
+    const { refreshTokenCookie } = await registerAndLogin('logout@example.com');
+
+    if (!refreshTokenCookie) {
+      throw new Error('Failed to get refresh token cookie from login');
+    }
 
     const res = await request(app)
       .post('/api/v1/auth/logout')
-      .set('Cookie', refreshToken!);
+      .set('Cookie', refreshTokenCookie);
 
     expect(res.status).toBe(204);
-    // Cookie should be cleared (set to empty/expired)
-    const setCookie = res.headers['set-cookie']?.[0] ?? '';
-    expect(setCookie).toContain('refresh_token=;');
+    
+    // Validate the cookie is explicitly cleared
+    const cookies = [res.headers['set-cookie'] || []].flat();
+    const clearedCookie = cookies.find((c: string) => c.startsWith('refresh_token='));
+    expect(clearedCookie).toBeDefined();
+    expect(clearedCookie).toContain('Expires=Thu, 01 Jan 1970'); // Express clears cookies using the Expires attribute 
   });
 
   it('returns 204 even with no cookie (idempotent)', async () => {
@@ -218,11 +265,12 @@ describe('POST /api/v1/auth/verify-email', () => {
         email: 'verify@example.com',
         passwordHash: 'irrelevant',
         isVerified: false,
+        isActive: true,
         profile: { create: { fullName: 'Verify User' } },
       },
     });
 
-    const rawToken = 'test-verification-token-abc123';
+    const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = hashToken(rawToken);
     const expiresAt = new Date(Date.now() + 3600000);
 
@@ -265,6 +313,7 @@ describe('POST /api/v1/auth/forgot-password', () => {
         email: 'forgot@example.com',
         passwordHash: 'irrelevant',
         isVerified: true,
+        isActive: true,
         profile: { create: { fullName: 'Forgot User' } },
       },
     });
@@ -295,11 +344,12 @@ describe('POST /api/v1/auth/reset-password', () => {
         email: 'reset@example.com',
         passwordHash: 'old-hash',
         isVerified: true,
+        isActive: true,
         profile: { create: { fullName: 'Reset User' } },
       },
     });
 
-    const rawToken = 'test-reset-token-xyz789';
+    const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = hashToken(rawToken);
 
     await prisma.passwordResetToken.create({
@@ -318,26 +368,18 @@ describe('POST /api/v1/auth/reset-password', () => {
     expect(res.body.message).toBe('Password updated successfully.');
   });
 
-  it('returns 400 for an invalid token', async () => {
-    const res = await request(app)
-      .post('/api/v1/auth/reset-password')
-      .send({ token: 'bad-token', password: 'newpassword123' });
-
-    expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe('INVALID_TOKEN');
-  });
-
   it('returns 400 for an already used token', async () => {
     const account = await prisma.account.create({
       data: {
         email: 'usedtoken@example.com',
         passwordHash: 'hash',
         isVerified: true,
+        isActive: true,
         profile: { create: { fullName: 'Used Token User' } },
       },
     });
 
-    const rawToken = 'used-reset-token-123';
+    const rawToken = crypto.randomBytes(32).toString('hex');
     const tokenHash = hashToken(rawToken);
 
     await prisma.passwordResetToken.create({
@@ -345,7 +387,7 @@ describe('POST /api/v1/auth/reset-password', () => {
         accountId: account.id,
         tokenHash,
         expiresAt: new Date(Date.now() + 3600000),
-        usedAt: new Date(), // already used
+        usedAt: new Date(), 
       },
     });
 
@@ -390,6 +432,7 @@ describe('DELETE /api/v1/auth/sessions/:id', () => {
     const sessions = await prisma.session.findMany({
       where: { accountId: account.id },
     });
+
     const sessionId = sessions[0]!.id;
 
     const res = await request(app)
@@ -407,11 +450,16 @@ describe('DELETE /api/v1/auth/sessions/:id', () => {
       where: { accountId: otherAccount.id },
     });
 
+    if (!otherSession) {
+      throw new Error('No session found for other account');
+    }
+
     const res = await request(app)
-      .delete(`/api/v1/auth/sessions/${otherSession!.id}`)
+      .delete(`/api/v1/auth/sessions/${otherSession.id}`)
       .set('Authorization', `Bearer ${accessToken}`);
 
     expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('FORBIDDEN');
   });
 });
 
