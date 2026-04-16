@@ -2,6 +2,26 @@ import request from 'supertest';
 import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env.test' });
 
+// ─── ADD THESE MOCKS ──────────────────────────────────────────────────────────
+
+jest.mock('express-rate-limit', () => {
+  return () => (req: any, res: any, next: any) => next();
+});
+
+jest.mock('../../analytics/analytics.jobs', () => ({
+  startAnalyticsJobs: jest.fn(),
+}));
+
+// Use requireActual to keep the rest of the service intact!
+jest.mock('../audit.service', () => {
+  const originalModule = jest.requireActual('../audit.service');
+  return {
+    __esModule: true,
+    ...originalModule,
+    createAuditEvent: jest.fn().mockResolvedValue(undefined),
+  };
+})
+
 import app from '../../../app';
 import { PrismaClient } from '../../../generated/prisma';
 import bcrypt from 'bcrypt';
@@ -32,6 +52,11 @@ async function createAndLoginUser(
   const res = await request(app)
     .post('/api/v1/auth/login')
     .send({ email, password: 'password123' });
+
+  // Add this safety check!
+  if (res.status !== 200) {
+    throw new Error(`Auth setup failed with status ${res.status}: ${JSON.stringify(res.body)}`);
+  }
 
   return res.body.access_token as string;
 }
