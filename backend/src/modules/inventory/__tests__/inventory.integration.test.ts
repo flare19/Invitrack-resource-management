@@ -2,6 +2,21 @@ import request from 'supertest';
 import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env.test' });
 
+// 1. Mock rate limiter to pass-through
+jest.mock('express-rate-limit', () => {
+  return () => (req: any, res: any, next: any) => next();
+});
+
+// 2. Mock background analytics jobs to prevent Jest hangs
+jest.mock('../../analytics/analytics.jobs', () => ({
+  startAnalyticsJobs: jest.fn(),
+}));
+
+// 3. Mock audit service to prevent async hanging
+jest.mock('../../audit/audit.service', () => ({
+  createAuditEvent: jest.fn().mockResolvedValue(undefined),
+}));
+
 import app from '../../../app';
 import { PrismaClient } from '../../../generated/prisma';
 import bcrypt from 'bcrypt';
@@ -32,6 +47,11 @@ async function createAndLoginUser(
   const res = await request(app)
     .post('/api/v1/auth/login')
     .send({ email, password: 'password123' });
+
+  // Add this safety check!
+  if (res.status !== 200) {
+    throw new Error(`Auth setup failed with status ${res.status}: ${JSON.stringify(res.body)}`);
+  }
 
   return res.body.access_token as string;
 }
@@ -78,6 +98,11 @@ async function createAndLoginWithPermission(
   const res = await request(app)
     .post('/api/v1/auth/login')
     .send({ email, password: 'password123' });
+
+  // Add this safety check!
+  if (res.status !== 200) {
+    throw new Error(`Auth setup failed with status ${res.status}: ${JSON.stringify(res.body)}`);
+  }
 
   return res.body.access_token as string;
 }
