@@ -2,6 +2,23 @@ import request from 'supertest';
 import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env.test' });
 
+// ─── ADD THESE MOCKS ──────────────────────────────────────────────────────────
+
+// 1. Mock express-rate-limit to pass-through
+jest.mock('express-rate-limit', () => {
+  return () => (req: any, res: any, next: any) => next();
+});
+
+// 2. Mock background analytics jobs to prevent Jest "Open Handle" hangs
+jest.mock('../../analytics/analytics.jobs', () => ({
+  startAnalyticsJobs: jest.fn(),
+}));
+
+// 3. Mock audit service to prevent async hanging
+jest.mock('../../audit/audit.service', () => ({
+  createAuditEvent: jest.fn().mockResolvedValue(undefined),
+}));
+
 import app from '../../../app';
 import { PrismaClient } from '../../../generated/prisma';
 import bcrypt from 'bcrypt';
@@ -32,6 +49,11 @@ async function createAndLoginUser(
   const res = await request(app)
     .post('/api/v1/auth/login')
     .send({ email, password: 'password123' });
+
+  // Add this safety check!
+  if (res.status !== 200) {
+    throw new Error(`Auth setup failed with status ${res.status}: ${JSON.stringify(res.body)}`);
+  }
 
   return res.body.access_token as string;
 }
@@ -79,6 +101,10 @@ async function createAndLoginWithPermission(
     .post('/api/v1/auth/login')
     .send({ email, password: 'password123' });
 
+  // Add this safety check!
+  if (res.status !== 200) {
+    throw new Error(`Auth setup failed with status ${res.status}: ${JSON.stringify(res.body)}`);
+  }
   return res.body.access_token as string;
 }
 
@@ -117,8 +143,8 @@ async function seedReservation(
       resourceId,
       requestedBy,
       quantity: 1,
-      startTime: new Date('2024-03-07T09:00:00Z'),
-      endTime: new Date('2024-03-07T11:00:00Z'),
+      startTime: new Date('2027-03-07T09:00:00Z'),
+      endTime: new Date('2027-03-07T11:00:00Z'),
       status: 'pending',
       priority: 10,
       ...overrides,
@@ -334,8 +360,8 @@ describe('GET /api/v1/bookings/resources/:id/availability', () => {
       .get(`/api/v1/bookings/resources/${resource.id}/availability`)
       .set('Authorization', `Bearer ${token}`)
       .query({
-        start_time: '2024-03-07T09:00:00Z',
-        end_time: '2024-03-07T11:00:00Z',
+        start_time: '2027-03-07T09:00:00Z',
+        end_time: '2027-03-07T11:00:00Z',
       });
 
     expect(res.status).toBe(200);
@@ -356,8 +382,8 @@ describe('GET /api/v1/bookings/resources/:id/availability', () => {
       .get(`/api/v1/bookings/resources/${resource.id}/availability`)
       .set('Authorization', `Bearer ${token}`)
       .query({
-        start_time: '2024-03-07T08:00:00Z',
-        end_time: '2024-03-07T10:00:00Z',
+        start_time: '2027-03-07T08:00:00Z',
+        end_time: '2027-03-07T10:00:00Z',
       });
 
     expect(res.status).toBe(200);
@@ -375,7 +401,7 @@ describe('GET /api/v1/bookings/resources/:id/availability', () => {
     const res = await request(app)
       .get(`/api/v1/bookings/resources/${resource.id}/availability`)
       .set('Authorization', `Bearer ${token}`)
-      .query({ end_time: '2024-03-07T11:00:00Z' });
+      .query({ end_time: '2027-03-07T11:00:00Z' });
 
     expect(res.status).toBe(400);
   });
@@ -391,8 +417,8 @@ describe('GET /api/v1/bookings/resources/:id/availability', () => {
       .get(`/api/v1/bookings/resources/${resource.id}/availability`)
       .set('Authorization', `Bearer ${token}`)
       .query({
-        start_time: '2024-03-07T11:00:00Z',
-        end_time: '2024-03-07T09:00:00Z',
+        start_time: '2027-03-07T11:00:00Z',
+        end_time: '2027-03-07T09:00:00Z',
       });
 
     expect(res.status).toBe(400);
@@ -405,8 +431,8 @@ describe('GET /api/v1/bookings/resources/:id/availability', () => {
       .get('/api/v1/bookings/resources/00000000-0000-0000-0000-000000000000/availability')
       .set('Authorization', `Bearer ${token}`)
       .query({
-        start_time: '2024-03-07T09:00:00Z',
-        end_time: '2024-03-07T11:00:00Z',
+        start_time: '2027-03-07T09:00:00Z',
+        end_time: '2027-03-07T11:00:00Z',
       });
 
     expect(res.status).toBe(404);
@@ -430,8 +456,8 @@ describe('POST /api/v1/bookings/reservations', () => {
       .send({
         resource_id: resource.id,
         quantity: 1,
-        start_time: '2024-03-07T09:00:00Z',
-        end_time: '2024-03-07T11:00:00Z',
+        start_time: '2027-03-07T09:00:00Z',
+        end_time: '2027-03-07T11:00:00Z',
       });
 
     expect(res.status).toBe(201);
@@ -454,8 +480,8 @@ describe('POST /api/v1/bookings/reservations', () => {
       .send({
         resource_id: resource.id,
         quantity: 1,
-        start_time: '2024-03-07T08:00:00Z',
-        end_time: '2024-03-07T10:00:00Z',
+        start_time: '2027-03-07T08:00:00Z',
+        end_time: '2027-03-07T10:00:00Z',
       });
 
     expect(res.status).toBe(409);
@@ -474,8 +500,8 @@ describe('POST /api/v1/bookings/reservations', () => {
       .send({
         resource_id: resource.id,
         quantity: 1,
-        start_time: '2024-03-07T11:00:00Z',
-        end_time: '2024-03-07T09:00:00Z',
+        start_time: '2027-03-07T11:00:00Z',
+        end_time: '2027-03-07T09:00:00Z',
       });
 
     expect(res.status).toBe(400);
