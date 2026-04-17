@@ -11,7 +11,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "test:unit": "jest --selectProjects unit --runInBand",
     "test:integration": "jest --selectProjects integration --runInBand --forceExit",
-    "test:all": "jest --runInBand --forceExit"
+    "test:all": "jest --runInBand --forceExit",
+    "build": "tsc"
   },
   "keywords": [],
   "author": "",
