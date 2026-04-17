@@ -9,6 +9,7 @@ generator client {
   output   = "../src/generated/prisma"
   previewFeatures = ["multiSchema"]
   engineType      = "binary"
+  binaryTargets   = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
