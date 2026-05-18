@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD
 
 on:
   push:
@@ -43,9 +43,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Type check
-        run: npm run build
-
       - name: Create .env.test
         run: |
           cat > .env.test << 'EOF'
@@ -70,5 +67,27 @@ jobs:
           APP_URL=http://localhost:5000
           EOF
 
+      - name: Type check
+        run: npm run build
+
       - name: Run tests
         run: npm run test:all
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/Invitrack-resource-management
+            git pull origin main
+            cd backend
+            docker compose down
+            docker compose up -d --build
