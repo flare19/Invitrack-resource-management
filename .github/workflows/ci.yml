@@ -29,10 +29,6 @@ jobs:
       run:
         working-directory: backend
 
-    env:
-      NODE_ENV: test
-      DATABASE_URL: postgresql://postgres:Database@123@localhost:5432/invitrack_test
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -52,8 +48,27 @@ jobs:
 
       - name: Create .env.test
         run: |
-          echo "NODE_ENV=test" > .env.test
-          echo "DATABASE_URL=postgresql://postgres:Database@123@localhost:5432/invitrack_test" >> .env.test
+          cat > .env.test << 'EOF'
+          NODE_ENV=test
+          DATABASE_URL=postgresql://postgres:Database@123@localhost:5432/invitrack_test
+          JWT_ACCESS_SECRET=test-access-secret-do-not-use-in-production
+          JWT_REFRESH_SECRET=test-refresh-secret-do-not-use-in-production
+          JWT_ACCESS_EXPIRES_IN=15m
+          JWT_REFRESH_EXPIRES_IN=7d
+          COOKIE_SECRET=test-cookie-secret-do-not-use-in-production
+          GOOGLE_CLIENT_ID=test
+          GOOGLE_CLIENT_SECRET=test
+          GITHUB_CLIENT_ID=test
+          GITHUB_CLIENT_SECRET=test
+          OAUTH_CALLBACK_BASE_URL=http://localhost:3000
+          FRONTEND_URL=http://localhost:5173
+          SMTP_HOST=localhost
+          SMTP_PORT=587
+          SMTP_USER=test@example.com
+          SMTP_PASS=test
+          SMTP_FROM=test@example.com
+          APP_URL=http://localhost:5000
+          EOF
 
       - name: Run tests
         run: npm run test:all
