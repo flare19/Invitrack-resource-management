@@ -50,5 +50,10 @@ jobs:
       - name: Type check
         run: npm run build
 
+      - name: Create .env.test
+        run: |
+          echo "NODE_ENV=test" > .env.test
+          echo "DATABASE_URL=postgresql://postgres:Database@123@localhost:5432/invitrack_test" >> .env.test
+
       - name: Run tests
         run: npm run test:all
