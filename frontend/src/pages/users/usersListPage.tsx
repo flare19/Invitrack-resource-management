@@ -23,8 +23,7 @@ function getErrorMessage(err: unknown): string {
 
 export function UsersListPage() {
   const navigate = useNavigate()
-  const { roles } = useAuth()
-  const isAdmin = roles.some(r => r.name === 'admin')
+  useAuth()
 
   const [filters, setFilters] = useState<GetUsersParams>({
     page: 1,

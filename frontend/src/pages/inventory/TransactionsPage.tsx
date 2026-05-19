@@ -6,17 +6,16 @@ import { TransactionRow } from './TransactionRow'
 import LoadingSpinner from '@/components/shared/LoadingSpinner'
 import PageError from '@/components/shared/PageError'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { GetTransactionsParams } from '@/api/inventory'
 
 export default function TransactionsPage() {
   const { permissions, user } = useAuth()
   const [filters, setFilters] = useState<GetTransactionsParams>({ page: 1 })
-  const [showRecordTransaction, setShowRecordTransaction] = useState(false)
+  const [] = useState(false)
 
   const canViewAllTransactions =
     permissions.includes('user:admin') || permissions.includes('audit:view')
-  const canRecord = permissions.includes('inventory:write')
 
   // Auto-filter by current user if they don't have permission to view all
   const queryParams: GetTransactionsParams = {

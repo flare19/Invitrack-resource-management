@@ -14,8 +14,8 @@ export default function RolesManagementPage() {
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null)
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false)
 
-  const { data: roles, isLoading: rolesLoading, isError: rolesError, error: rolesErrorObj } = useRoles()
-  const { data: allPermissions, isLoading: permsLoading } = usePermissions()
+  const { data: roles, isLoading: rolesLoading, isError: rolesError } = useRoles()
+  const { data: allPermissions } = usePermissions()
   const { data: rolePermissions, isLoading: rolePermsLoading } = useRolePermissions(selectedRoleId ?? 0, {
     enabled: selectedRoleId !== null,
   })

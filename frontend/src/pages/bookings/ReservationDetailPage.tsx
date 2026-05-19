@@ -14,7 +14,6 @@ export default function ReservationDetailPage() {
   const navigate = useNavigate()
   const { permissions, user } = useAuth()
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [isReviewOpen, setIsReviewOpen] = useState(false)
 
   const canApprove = permissions.includes('bookings:approve')
   const canEdit = permissions.includes('bookings:write') || user?.id

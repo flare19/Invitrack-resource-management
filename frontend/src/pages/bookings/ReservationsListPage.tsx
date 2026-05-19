@@ -12,9 +12,9 @@ import { Plus } from 'lucide-react'
 import type { GetReservationsParams } from '@/api/bookings'
 
 export default function ReservationsListPage() {
-  const { permissions, roles } = useAuth()
+  const { permissions } = useAuth()
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  const [reviewReservationId, setReviewReservationId] = useState<string | null>(null)
+  const [, setReviewReservationId] = useState<string | null>(null)
   const [filters, setFilters] = useState<GetReservationsParams>({
     page: 1,
     per_page: 20,
