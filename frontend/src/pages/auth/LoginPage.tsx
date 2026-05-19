@@ -175,13 +175,13 @@ export default function LoginPage() {
 
         <div className="space-y-2">
           <a
-            href="/api/v1/auth/oauth/google"
+            href={`${import.meta.env.VITE_API_URL}/api/v1/auth/oauth/google`}
             className="flex w-full items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm hover:bg-accent transition-colors"
           >
             Continue with Google
           </a>
           <a
-            href="/api/v1/auth/oauth/github"
+            href={`${import.meta.env.VITE_API_URL}/api/v1/auth/oauth/github`}
             className="flex w-full items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm hover:bg-accent transition-colors"
           >
             Continue with GitHub
