@@ -23,6 +23,7 @@ type AuthContextValue = AuthState & {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 async function hydratePermissions(user: UserProfile): Promise<string[]> {
+  if (!user.roles?.length) return []
   const results = await Promise.all(
     user.roles.map((role) => getRolePermissions(role.id))
   )
