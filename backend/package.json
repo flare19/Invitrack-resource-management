@@ -12,7 +12,8 @@
     "test:unit": "jest --selectProjects unit --runInBand",
     "test:integration": "jest --selectProjects integration --runInBand --forceExit",
     "test:all": "jest --runInBand --forceExit",
-    "build": "tsc"
+    "build": "tsc",
+    "seed:admin": "tsx scripts/seed-admin.ts"
   },
   "keywords": [],
   "author": "",

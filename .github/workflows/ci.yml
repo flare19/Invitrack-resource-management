@@ -87,6 +87,8 @@ jobs:
             cd backend
             docker compose down
             docker compose up -d --build
+            sleep 5
+            docker compose exec api npx prisma migrate deploy
 
   deploy-frontend:
     runs-on: ubuntu-latest
