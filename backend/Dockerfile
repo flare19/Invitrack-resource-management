@@ -19,6 +19,7 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/src/generated ./dist/generated
 COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/scripts ./scripts
 COPY package*.json ./
 COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh
