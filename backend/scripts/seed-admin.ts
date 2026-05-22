@@ -1,7 +1,7 @@
 // scripts/seed-admin.ts
 
 import 'dotenv/config';
-import { PrismaClient } from '../src/generated/prisma';
+import { PrismaClient } from '../dist/generated/prisma';
 import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
