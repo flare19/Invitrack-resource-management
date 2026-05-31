@@ -755,3 +755,70 @@ Rate-limit rejections return `429` with the standard app error envelope (`RATE_L
 ### Trade-offs Accepted
 
 The in-memory store does not share state across multiple Node.js processes or instances. At current deployment scale this is a non-issue. Limits reset on process restart, which is acceptable for a portfolio-grade system.
+
+## ADR-030 — Introduce Redis Infrastructure for Caching and Job Queues
+
+| Field  | Value      |
+|--------|------------|
+| Date   | 2026-05-31 |
+| Status | Decided    |
+
+### Decision
+
+Redis is introduced as a third Docker Compose service alongside the Node.js app
+and PostgreSQL. It will serve two use cases, implemented in separate sessions:
+
+1. **Query caching** — role/permission lookups per request (auth middleware),
+   inventory item lists, categories, and bookable resources.
+2. **Job queues** — BullMQ-backed audit event delivery, replacing the
+   fire-and-forget pattern established in ADR-027.
+
+A singleton `ioredis` client is created at `src/lib/redis.ts` and imported
+wherever Redis access is needed. BullMQ also requires `ioredis` internally,
+so a single client library serves both use cases.
+
+### Rationale
+
+ADR-018 explicitly deferred Redis and listed caching and job queues as the
+natural candidates for a later phase once the core system was stable and
+deployed. That condition is now met — Invitrack v1.0.0 is live in production.
+
+The immediate trigger is ADR-019's own note that role/permission lookups are
+the natural first caching candidate. Every protected request fires a database
+query to resolve roles and permissions from `users.account_roles` and
+`users.role_permissions`. At low traffic this is acceptable; introducing a
+short-lived cache here is the highest-ROI single change available.
+
+BullMQ is introduced in the same infrastructure session because it shares the
+Redis dependency. Standing up Redis once and having both consumers ready is
+cleaner than introducing Redis for caching and then touching Docker Compose,
+environment variables, and the Redis client again when BullMQ is added.
+
+`ioredis` is chosen over the `redis` npm package because BullMQ requires
+`ioredis` explicitly. Using a single client library for both use cases avoids
+two Redis connections and two dependency trees.
+
+### Supersedes
+
+Partially supersedes ADR-018 for the caching and job queue use cases.
+The locking deferral in ADR-018 remains valid — PostgreSQL advisory locks
+are the permanent solution per ADR-025. The rate-limiting deferral in
+ADR-018 also remains valid — `express-rate-limit` with an in-memory store
+is the current solution per ADR-029, with a noted upgrade path to
+`rate-limit-redis` if the deployment scales.
+
+### Trade-offs Accepted
+
+- Redis is now a required service for local development. The Docker Compose
+  service handles this automatically; contributors no longer need a separate
+  Redis install.
+- Redis is on the critical path for BullMQ job processing. If Redis is
+  unavailable, audit event delivery degrades to failed queue pushes. The
+  application remains functional — primary operations are unaffected.
+- Caching introduces a consistency window. Cache invalidation is handled
+  via write-through invalidation at mutation call sites. TTLs act as a
+  safety net if invalidation is missed.
+- EC2 t3.small memory pressure increases with a third Docker Compose service.
+  Redis default memory usage is low and will be explicitly capped via
+  `maxmemory` in the Docker Compose config to prevent OOM conditions on
+  the instance.
