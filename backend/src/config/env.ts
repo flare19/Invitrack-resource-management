@@ -57,6 +57,9 @@ export const env = {
   // Logging
   LOG_LEVEL: process.env.LOG_LEVEL ?? 'info',
 
+  // Redis
+  REDIS_URL: process.env.REDIS_URL ?? 'redis://localhost:6379',
+
   // AWS
   AWS_REGION: process.env.AWS_REGION ?? 'us-east-1',
   AWS_S3_BUCKET_NAME: process.env.AWS_S3_BUCKET_NAME,
