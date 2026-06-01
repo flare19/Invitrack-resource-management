@@ -5,6 +5,17 @@ import jwt from 'jsonwebtoken';
 import { env } from '../../config/env';
 import { AppError } from '../../errors/AppError';
 import { findAccountWithPermissions } from './repository';
+import { getCache, setCache } from '../../lib/cache';
+
+const PERMISSIONS_TTL = 300; // 5 minutes
+
+type AccountPermissions = {
+  id: string;
+  email: string;
+  isActive: boolean;
+  roles: string[];
+  permissions: string[];
+};
 
 export async function authenticate(
   req: Request,
@@ -13,15 +24,13 @@ export async function authenticate(
 ): Promise<void> {
   try {
     const authHeader = req.headers.authorization;
-
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw new AppError(401, 'UNAUTHORIZED', 'Missing or malformed authorization header');
     }
 
     const token = authHeader.split(' ')[1];
-
     if (!token) {
-    throw new AppError(401, 'UNAUTHORIZED', 'Missing or malformed authorization header');
+      throw new AppError(401, 'UNAUTHORIZED', 'Missing or malformed authorization header');
     }
 
     let payload: { sub: string };
@@ -31,7 +40,15 @@ export async function authenticate(
       throw new AppError(401, 'UNAUTHORIZED', 'Invalid or expired access token');
     }
 
-    const account = await findAccountWithPermissions(payload.sub);
+    const cacheKey = `permissions:${payload.sub}`;
+    let account = await getCache<AccountPermissions>(cacheKey);
+
+    if (!account) {
+      account = await findAccountWithPermissions(payload.sub);
+      if (account) {
+        await setCache(cacheKey, account, PERMISSIONS_TTL);
+      }
+    }
 
     if (!account) {
       throw new AppError(401, 'UNAUTHORIZED', 'Account not found');

@@ -25,6 +25,8 @@ import { UpdateProfileDTO,
 
 import { createAuditEvent } from '../audit/audit.service';
 
+import { deleteCache } from '../../lib/cache';
+
 function formatProfileResponse(account: NonNullable<Awaited<ReturnType<typeof findAccountWithProfile>>>): UserProfileDTO {
   return {
     id: account.id,
@@ -165,7 +167,6 @@ export async function assignRoleService(
     throw new AppError(404, 'USER_NOT_FOUND', 'User not found.');
   }
 
-  // SMALLINT max is 32767 — anything above will throw at the DB level
   if (roleId > 32767 || roleId < 1) {
     throw new AppError(404, 'ROLE_NOT_FOUND', 'Role not found.');
   }
@@ -182,7 +183,8 @@ export async function assignRoleService(
 
   const assignment = await createAccountRole(accountId, roleId, grantedBy);
 
-  // assignRoleService — after the insert succeeds, before return
+  await deleteCache(`permissions:${accountId}`);
+
   createAuditEvent({
     actorId: grantedBy,
     action: 'users.role.assigned',
@@ -205,21 +207,19 @@ export async function removeRoleService(
   roleId: number
 ): Promise<void> {
   const account = await findAccountById(accountId);
-
   if (!account) {
     throw new AppError(404, 'USER_NOT_FOUND', 'User not found.');
   }
 
   const existing = await findAccountRole(accountId, roleId);
-
   if (!existing) {
     throw new AppError(404, 'ROLE_ASSIGNMENT_NOT_FOUND', 'Role assignment not found.');
   }
 
   await deleteAccountRole(accountId, roleId);
 
-  // removeRoleService — after the delete succeeds
-  // you have accountId and roleId as parameters:
+  await deleteCache(`permissions:${accountId}`);
+
   createAuditEvent({
     action: 'users.role.removed',
     module: 'users',
