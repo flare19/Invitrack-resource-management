@@ -23,6 +23,16 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     defaults:
       run:
         working-directory: backend
@@ -61,7 +71,8 @@ jobs:
           SMTP_USER=test@example.com
           SMTP_PASS=test
           SMTP_FROM=test@example.com
-          APP_URL=http://localhost:5000
+          APP_URL=http://localhost:5000 
+          REDIS_URL=redis://localhost:6379
           EOF
 
       - name: Type check
