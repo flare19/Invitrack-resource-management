@@ -23,7 +23,7 @@ import { UpdateProfileDTO,
   AssignRoleResponseDTO,
   PaginatedResponseDTO, } from './types';
 
-import { createAuditEvent } from '../audit/audit.service';
+import { enqueueAuditEvent } from '../audit/audit.queue';
 
 import { deleteCache } from '../../lib/cache';
 
@@ -140,12 +140,12 @@ export async function updateUserByIdService(
 
   // updateUserByIdService — conditional, only on deactivation
   if (dto.is_active === false) {
-    createAuditEvent({
+    enqueueAuditEvent({
       action: 'users.account.deactivated',
       module: 'users',
       targetType: 'account',
       targetId: accountId,
-    }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+    });
   }
 
   return formatProfileResponse(updated!);
@@ -185,14 +185,14 @@ export async function assignRoleService(
 
   await deleteCache(`permissions:${accountId}`);
 
-  createAuditEvent({
+  enqueueAuditEvent({
     actorId: grantedBy,
     action: 'users.role.assigned',
     module: 'users',
     targetType: 'account_role',
     targetId: accountId,
     payload: { roleId },
-  }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+  });
 
   return {
     account_id: assignment.accountId,
@@ -220,13 +220,13 @@ export async function removeRoleService(
 
   await deleteCache(`permissions:${accountId}`);
 
-  createAuditEvent({
+  enqueueAuditEvent({
     action: 'users.role.removed',
     module: 'users',
     targetType: 'account_role',
     targetId: accountId,
     payload: { roleId },
-  }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+  });
 }
 
 // src/modules/users/service.ts (additions)

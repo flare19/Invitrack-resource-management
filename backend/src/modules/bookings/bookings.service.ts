@@ -24,7 +24,7 @@ import {
   ReviewReservationDTO,
 } from './bookings.types';
 
-import { createAuditEvent } from '../audit/audit.service';
+import { enqueueAuditEvent } from '../audit/audit.queue';
 // ============================================================
 // Mappers
 // ============================================================
@@ -257,7 +257,7 @@ export async function createReservationService(
     });
   });
 
-  createAuditEvent({
+  enqueueAuditEvent({
     actorId: accountId,
     action: 'bookings.reservation.created',
     module: 'bookings',
@@ -270,7 +270,7 @@ export async function createReservationService(
       endTime: data.end_time,
       override: data.override ?? false,
     },
-  }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+  });
 
   return formatReservation(reservation);
 }
@@ -388,13 +388,13 @@ export async function updateReservationService(
   });
 
   if (data.status === 'cancelled') {
-    createAuditEvent({
+    enqueueAuditEvent({
       actorId: accountId,
       action: 'bookings.reservation.cancelled',
       module: 'bookings',
       targetType: 'reservation',
       targetId: reservation.id,
-    }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+    });
   }
 
   return formatReservation(updated);
@@ -468,14 +468,14 @@ export async function reviewReservationService(
       });
     });
 
-    createAuditEvent({
+    enqueueAuditEvent({
       actorId: reviewerId,
       actorEmail: reviewerEmail,
       action: 'bookings.reservation.approved',
       module: 'bookings',
       targetType: 'reservation',
       targetId: reservation.id,
-    }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+    });
 
     return formatReservation(updated);
   }
@@ -488,14 +488,14 @@ export async function reviewReservationService(
     ...(data.notes !== undefined && { notes: data.notes }),
   });
 
-  createAuditEvent({
+  enqueueAuditEvent({
     actorId: reviewerId,
     actorEmail: reviewerEmail,
     action: 'bookings.reservation.rejected',
     module: 'bookings',
     targetType: 'reservation',
     targetId: reservation.id,
-  }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+  });
 
 
   return formatReservation(updated);

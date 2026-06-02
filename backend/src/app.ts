@@ -14,6 +14,7 @@ import bookingsRouter from './modules/bookings/bookings.routes';
 import auditRouter from './modules/audit/audit.routes';
 import analyticsRouter from './modules/analytics/analytics.routes';
 import { startAnalyticsJobs } from './modules/analytics/analytics.jobs';
+import { startAuditWorker } from './modules/audit/audit.worker';
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use('/api/v1/bookings', bookingsRouter);
 app.use('/api/v1/audit', auditRouter);
 app.use('/api/v1/analytics', analyticsRouter);
 startAnalyticsJobs();
+startAuditWorker();
 
 // 404
 app.use((_req: Request, _res: Response, next: NextFunction) => {
