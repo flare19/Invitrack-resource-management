@@ -33,7 +33,7 @@ import {
   UpdateItemDTO,
 } from './inventory.types';
 
-import { createAuditEvent } from '../audit/audit.service';
+import { enqueueAuditEvent } from '../audit/audit.queue';
 // ============================================================
 // Mappers
 // ============================================================
@@ -210,7 +210,7 @@ export async function addItem(
 
   const item = await createItem(data, createdBy);
 
-  createAuditEvent({
+  enqueueAuditEvent({
     actorId: createdBy,
     actorEmail: createdByEmail,
     action: 'inventory.item.created',
@@ -218,7 +218,7 @@ export async function addItem(
     targetType: 'item',
     targetId: item.id,
     payload: { sku: item.sku, name: item.name },
-  }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+  });
 
   return formatItem(item);
 }
@@ -245,7 +245,7 @@ export async function editItem(
   try {
     const updated = await updateItem(id, data);
 
-    createAuditEvent({
+    enqueueAuditEvent({
       actorId,
       actorEmail,
       action: 'inventory.item.updated',
@@ -253,7 +253,7 @@ export async function editItem(
       targetType: 'item',
       targetId: id,
       payload: { ...data },
-    }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+    });
 
     return formatItem(updated);
   } catch (err: unknown) {
@@ -288,7 +288,7 @@ export async function removeItem(
   try {
     await softDeleteItem(id);
 
-    createAuditEvent({
+    enqueueAuditEvent({
       actorId,
       actorEmail,
       action: 'inventory.item.deleted',
@@ -296,7 +296,7 @@ export async function removeItem(
       targetType: 'item',
       targetId: id,
       payload: { sku: existing.sku, name: existing.name },
-    }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+    });
   } catch (err: unknown) {
     if (
       typeof err === 'object' &&
@@ -365,7 +365,7 @@ export async function recordTransaction(
   try {
     const transaction = await createTransactionWithStockUpdate(data, performedBy);
 
-    createAuditEvent({
+    enqueueAuditEvent({
       actorId: performedBy,
       action: 'inventory.transaction.created',
       module: 'inventory',
@@ -377,7 +377,7 @@ export async function recordTransaction(
         type: data.type,
         quantityDelta: data.quantity_delta,
       },
-    }).catch((err) => console.error('[audit] Failed to write audit event:', err));
+    });
 
     return formatTransaction(transaction);
   } catch (err: unknown) {
