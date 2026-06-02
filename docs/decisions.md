@@ -822,3 +822,48 @@ is the current solution per ADR-029, with a noted upgrade path to
   Redis default memory usage is low and will be explicitly capped via
   `maxmemory` in the Docker Compose config to prevent OOM conditions on
   the instance.
+
+  ## ADR-031 — Replace Fire-and-Forget Audit Writes with BullMQ Job Queue
+
+| Field  | Value      |
+|--------|------------|
+| Date   | 2026-06-02 |
+| Status | Decided    |
+
+### Decision
+
+Audit event emission is moved from fire-and-forget promises to a BullMQ
+job queue backed by Redis. `enqueueAuditEvent` in `src/modules/audit/audit.queue.ts`
+replaces all `createAuditEvent(...).catch(...)` call sites across the auth,
+users, inventory, and bookings modules. A worker in
+`src/modules/audit/audit.worker.ts` consumes jobs and writes to `audit.events`.
+
+### Configuration
+- Retries: 3 attempts with exponential backoff (1s, 2s, 4s)
+- Dead-letter retention: 500 failed jobs retained in Redis for inspection
+- Completed job retention: 100 jobs retained
+- Worker concurrency: 5
+
+### Rationale
+
+ADR-027 established fire-and-forget as the initial pattern with an explicit
+note that a message queue should replace it if audit completeness becomes
+critical. BullMQ provides guaranteed delivery, retry semantics, and dead-letter
+handling without requiring a separate process — the worker runs in the same
+Node.js process as the API. Redis is already in the stack per ADR-030.
+
+### Supersedes
+
+Supersedes the fire-and-forget pattern established in ADR-027 for audit
+event delivery. The `createAuditEvent` function itself is unchanged — BullMQ
+wraps the delivery mechanism, not the write logic.
+
+### Trade-offs Accepted
+
+- Audit event delivery is now asynchronous — there is a small window between
+  the primary operation completing and the audit event being written.
+- If Redis is unavailable, `enqueueAuditEvent` logs the failure and swallows
+  the error — the primary operation is unaffected but the audit event is lost.
+  This is the same failure mode as ADR-027 but now requires Redis to be
+  healthy rather than PostgreSQL.
+- BullMQ adds a second consumer of Redis alongside the cache layer from ADR-030.
