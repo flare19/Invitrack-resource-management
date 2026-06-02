@@ -3,13 +3,20 @@ import { env } from '../../config/env';
 import { createAuditEvent } from './audit.service';
 import { CreateAuditEventInput } from './audit.types';
 
+const redisUrl = env.REDIS_URL ?? 'redis://localhost:6379';
 const connection = {
-  host: new URL(env.REDIS_URL).hostname,
-  port: parseInt(new URL(env.REDIS_URL).port || '6379', 10),
+  host: new URL(redisUrl).hostname,
+  port: parseInt(new URL(redisUrl).port || '6379', 10),
 };
 
+let worker: Worker;
+
+export function getAuditWorker() {
+  return worker;
+}
+
 export function startAuditWorker(): void {
-  const worker = new Worker(
+  worker = new Worker(
     'audit',
     async (job) => {
       const input = job.data as CreateAuditEventInput;

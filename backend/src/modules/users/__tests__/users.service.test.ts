@@ -15,6 +15,10 @@ jest.mock('../repository');
 // ─── Mock the audit module ────────────────────────────────────────────────────
 jest.mock('../../../modules/audit/audit.service');
 
+jest.mock('../../audit/audit.queue', () => ({
+  enqueueAuditEvent: jest.fn(),
+}));
+
 // ─── Import mocked repository functions ──────────────────────────────────────
 import { findAccountWithProfile, updateProfileById, findManyAccounts,
   updateUserById,

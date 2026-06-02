@@ -1,3 +1,8 @@
+import { auditQueue } from '../modules/audit/audit.queue';
+import { getAuditWorker } from '../modules/audit/audit.worker';
+
 export default async function globalTeardown() {
-  // Nothing needed — test DB persists between runs for inspection if needed
+  const worker = getAuditWorker();
+  if (worker) await worker.close();
+  await auditQueue.close();
 }

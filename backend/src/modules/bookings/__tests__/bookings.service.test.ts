@@ -23,6 +23,10 @@ jest.mock('../../../config/prisma', () => ({
 // ─── Mock the audit module ────────────────────────────────────────────────────
 jest.mock('../../../modules/audit/audit.service');
 
+jest.mock('../../audit/audit.queue', () => ({
+  enqueueAuditEvent: jest.fn(),
+}));
+
 import {
   findAllResources,
   findResourceById,

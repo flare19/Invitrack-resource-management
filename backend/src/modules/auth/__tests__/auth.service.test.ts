@@ -33,6 +33,10 @@ jest.mock('../../../config/env', () => ({
   },
 }));
 
+jest.mock('../../audit/audit.queue', () => ({
+  enqueueAuditEvent: jest.fn(),
+}));
+
 // ─── Import mocked repository functions ──────────────────────────────────────
 import {
   findAccountByEmail,

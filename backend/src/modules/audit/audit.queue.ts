@@ -2,9 +2,10 @@ import { Queue } from 'bullmq';
 import { env } from '../../config/env';
 import { CreateAuditEventInput } from './audit.types';
 
+const redisUrl = env.REDIS_URL ?? 'redis://localhost:6379';
 const connection = {
-  host: new URL(env.REDIS_URL).hostname,
-  port: parseInt(new URL(env.REDIS_URL).port || '6379', 10),
+  host: new URL(redisUrl).hostname,
+  port: parseInt(new URL(redisUrl).port || '6379', 10),
 };
 
 export const auditQueue = new Queue('audit', {
