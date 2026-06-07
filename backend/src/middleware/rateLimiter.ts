@@ -19,7 +19,7 @@ const rateLimitHandler = (
 /** POST /auth/login — brute-force protection */
 export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 5,
+  limit: 20,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   handler: rateLimitHandler,
